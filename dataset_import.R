@@ -50,7 +50,7 @@ datasetServer <- function(id) {
       }
       if(input$providedDataSet == "CTRPv2"){
         # should be modified if the location of the file changes.
-        CTRPv2_Data_path <- paste0(getwd(),"/provided_dataset/CTRPv2_Data_path.rds")
+        CTRPv2_Data_path <- paste0(getwd(),"/provided_dataset/CTRPv2_Data.rds")
         fileInfo$dataset <- readRDS(CTRPv2_Data_path)
         fileInfo$extraCol <- c("seCol", "subCol")
         fileInfo$type <- "CTRPv2"
