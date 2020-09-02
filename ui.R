@@ -68,11 +68,6 @@ introductionPage <- fluidPage(
 inputPage <- fluidPage(
     fluidRow(
         datasetInput("datafile")
-    ),
-    fluidRow(
-        box(width = NULL, status = "primary", solidHeader = TRUE, title="Table",
-            withSpinner(dataTableOutput("tablelook"))
-        )
     )
 )
 

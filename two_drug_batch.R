@@ -39,11 +39,13 @@ twoDrugs.batch.cellLinesThresholdServer <- function(id) {
 twoDrugs.batch.cellLineInput <- function(id) {
   ns <- NS(id)
   tagList(
-    pickerInput(ns("subgroups_batch"),"Select Cell Lines By Subgroups",
+    pickerInput(ns("subgroups"),"Select Cell Lines By Subgroups",
                 choices = NULL,
-                options = list(`actions-box` = TRUE,`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
+                options = list(`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
                 multiple = T),
-    pickerInput(ns("cell_lines_batch"),"Select Cell Lines",
+    actionButton(ns("selectAllSubgroups"),"Select All Subgroups"),
+    actionButton(ns("deselectAllSubgroups"),"Deselect All Subgroups"),
+    pickerInput(ns("cell_lines"),"Select Cell Lines",
                 choices = NULL,
                 options = list(`actions-box` = TRUE,`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE,
                                `selected-text-format`= "count",
@@ -54,51 +56,53 @@ twoDrugs.batch.cellLineInput <- function(id) {
 }
 
 
-twoDrugs.batch.cellLineServer <- function(id, dataset, selectedDrugs) {
+twoDrugs.batch.cellLineServer <- function(id, dataset) {
   moduleServer(id, function(input,output,session) {
     
-    cell_line_choices <- reactive(unique(dataset()$Cell_Line[dataset()$Drug %in% selectedDrugs()]))
-    subgroups_choices <- reactive(unique(dataset()$Cell_Line_Subgroup[dataset()$Drug %in% selectedDrugs()]))
+    cl_sg_set <- reactive(
+      if(!is.null(dataset()))
+        distinct(dataset()[, c("Cell_Line","Cell_Line_Subgroup")])
+      else
+        NULL
+    )
     
-    cl_sg_set <- reactive(unique(dataset()[ dataset()$Drug %in% selectedDrugs(), 
-                                           c("Cell_Line", "Cell_Line_Subgroup") ]))
+    cell_line_choices <- reactive(
+      unique(cl_sg_set()$Cell_Line)
+    )
     
-    #populate cell line choices
-    observeEvent(c(dataset(),selectedDrugs()), {
-      updatePickerInput(session, inputId = "cell_lines_batch", label = "Select  Cell Lines",
-                        selected = NULL,
+    subgroups_choices <- reactive(
+      unique(cl_sg_set()$Cell_Line_Subgroup)
+    )
+    
+    observeEvent(c(dataset()), {
+      updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                         choices = cell_line_choices())
-      updatePickerInput(session, inputId = "subgroups_batch", label = "Select All Cell Lines By Subgroups",
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
                         selected = NULL,
                         choices = c("Custom",subgroups_choices()))
     })
     
-    
-    
-    
     prev_selected_cell_lines <- reactiveVal(value = NULL)
     prev_selected_subgroups <- reactiveVal(value = NULL)
     
-    #select by subgroup
-    observeEvent(input$subgroups_batch, {
+    observeEvent(input$subgroups, {
+      
       if("Custom" %in% prev_selected_subgroups()) { ## Previously selected "Custom"
-        if("Custom" %in% input$subgroups_batch && length(input$subgroups_batch)>1) { ## check other subgroups. 
-          new_subgroups <- setdiff(input$subgroups_batch , "Custom")
+        if("Custom" %in% input$subgroups && length(input$subgroups)>1) { ## now select other subgroups. 
+          new_subgroups <- setdiff(input$subgroups , "Custom")
           new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
           prev_selected_cell_lines(new_cell_lines)
           prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines_batch", label = "Select  Cell Lines",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = new_cell_lines,
                             choices = cell_line_choices())
-          updatePickerInput(session, inputId = "subgroups_batch", label = "Select All Cell Lines By Subgroups",
+          updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
                             selected = new_subgroups,
                             choices = c("Custom",subgroups_choices()))
-          
-
         }
-        else if(is.null(input$subgroups_batch)){  # when users deselect "Custom"
+        else if(is.null(input$subgroups)){  # when users deselect "Custom"
           prev_selected_cell_lines(NULL)
-          updatePickerInput(session, inputId = "cell_lines_batch", label = "Select  Cell Lines",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = NULL,
                             choices = cell_line_choices())
         }
@@ -107,45 +111,59 @@ twoDrugs.batch.cellLineServer <- function(id, dataset, selectedDrugs) {
         }
       }
       else { ## Previously didn't select "Custom"
-        if("Custom" %in% input$subgroups_batch) {  ## newly select "Custom"
+        if("Custom" %in% input$subgroups) {  ## newly select "Custom"
           prev_selected_subgroups("Custom")
-          updatePickerInput(session, inputId = "subgroups_batch", label = "Select All Cell Lines By Subgroups",
+          updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
                             selected = "Custom",
                             choices = c("Custom",subgroups_choices()))
-          }
-        else {
-          new_subgroups <- input$subgroups_batch
+        }
+        else { # just select other subgroups
+          new_subgroups <- input$subgroups
           new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
           prev_selected_cell_lines(new_cell_lines)
           prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines_batch", label = "Select  Cell Lines",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = new_cell_lines,
                             choices = cell_line_choices())
-          updatePickerInput(session, inputId = "subgroups_batch", label = "Select All Cell Lines By Subgroups",
+          updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
                             selected = new_subgroups,
                             choices = c("Custom",subgroups_choices()))
         }
       }
     }, ignoreNULL = F)
+    
+    observeEvent(input$selectAllSubgroups, {
+      prev_selected_subgroups(subgroups_choices())
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = subgroups_choices(),
+                        choices = c("Custom",subgroups_choices()))
+    })
+    
+    observeEvent(input$deselectAllSubgroups, {
+      prev_selected_subgroups(NULL)
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = NULL,
+                        choices = c("Custom",subgroups_choices()))
+    })
+    
+    
+    observeEvent(input$cell_lines, {
       
-      observeEvent(input$cell_lines_batch, {
-        # ignoreNULL = T by default
-
-        if("Custom" %in% input$subgroups_batch){
-          prev_selected_cell_lines(input$cell_lines_batch)
+      if("Custom" %in% input$subgroups){
+        prev_selected_cell_lines(input$cell_lines)
+      }
+      else { 
+        # check whether the selected cell line match those subgroups.
+        if(!is.null(cl_sg_set()) && length(unique(cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups ])) != length(input$cell_lines)){
+          prev_selected_cell_lines(input$cell_lines)
+          prev_selected_subgroups(input$subgroups)
+          updatePickerInput(session, inputId = "subgroups", 
+                            label = "Select Cell Lines By Subgroups",
+                            selected = "Custom",
+                            choices = c("Custom",subgroups_choices()))
         }
-        else { 
-          # check whether the selected cell line match those subgroups.
-          if(nrow(cl_sg_set()[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups_batch, ]) != length(input$cell_lines_batch)){
-            prev_selected_cell_lines(input$cell_lines_batch)
-            prev_selected_subgroups(input$subgroups_batch)
-            updatePickerInput(session, inputId = "subgroups_batch", 
-                              label = "Select All Cell Lines By Subgroups (Multiple)",
-                              selected = "Custom",
-                              choices = c("Custom",subgroups_choices()))
-          }
-        }
-      })
+      }
+    }, ignoreNULL = F)
       
       
       
@@ -154,8 +172,8 @@ twoDrugs.batch.cellLineServer <- function(id, dataset, selectedDrugs) {
     
     
     list(
-      cellLines = reactive(input$cell_lines_batch),
-      subgroups = reactive(input$subgroups_batch)
+      cellLines = reactive(input$cell_lines),
+      subgroups = reactive(input$subgroups)
     )
   })
 }
@@ -231,7 +249,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     # get user Input
     selectedDrugs <- twoDrugs.batch.drugServer("drugSelection_batch",dataset)
 
-    selectedCellLinesAndSubgroups <- twoDrugs.batch.cellLineServer("cellLineSelection_batch",dataset, selectedDrugs)
+    selectedCellLinesAndSubgroups <- twoDrugs.batch.cellLineServer("cellLineSelection_batch",dataset)
     
     selectedCellLines <- selectedCellLinesAndSubgroups$cellLines
     
@@ -264,6 +282,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
       }
     )
     
+    
     observeEvent(input$button_batch,{
       if(is.null(dataset())){
         logText("Please Upload Your Data First!")
@@ -275,7 +294,6 @@ twoDrugs.batch.server <- function(id, fileInfo) {
         expand.grid(selected_drug[i], selected_drug[(i+1):length(selected_drug)])
       }) %>%
         rbindlist()
-      
       cl<-selectedCellLines()
       data <- dataset()
       shared_cl_numbers <- pairs %>%
@@ -288,6 +306,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
           shared = cl1[cl1%in%cl2]
           length(which(shared %in% cl))
         })
+      
       #create an error msg
       unusable_index = which(shared_cl_numbers < clThreshold())
       msg <- ""

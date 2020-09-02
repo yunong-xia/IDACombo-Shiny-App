@@ -33,8 +33,10 @@ testVsControl.batch.cellLineInput <- function(id) {
   tagList(
     pickerInput(ns("subgroups"),"Select Cell Lines By Subgroups",
                 choices = NULL,
-                options = list(`actions-box` = TRUE,`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
+                options = list(`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
                 multiple = T),
+    actionButton(ns("selectAllSubgroups"),"Select All Subgroups"),
+    actionButton(ns("deselectAllSubgroups"),"Deselect All Subgroups"),
     pickerInput(ns("cell_lines"),"Cell-Line available for both drugs (Multiple)",
                 choices = list(
                   `Cancer Cell Lines` = NULL),
@@ -62,12 +64,10 @@ testVsControl.batch.cellLineServer <- function(id, dataset) {
       unique(cl_sg_set()$Cell_Line_Subgroup)
     )
     
-    
-    
     observeEvent(c(dataset()), {
-      updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+      updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                         choices = cell_line_choices())
-      updatePickerInput(session, inputId = "subgroups", label = "Select All Cell Lines By Subgroups",
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
                         selected = NULL,
                         choices = c("Custom",subgroups_choices()))
     })
@@ -76,24 +76,23 @@ testVsControl.batch.cellLineServer <- function(id, dataset) {
     prev_selected_subgroups <- reactiveVal(value = NULL)
     
     observeEvent(input$subgroups, {
+      
       if("Custom" %in% prev_selected_subgroups()) { ## Previously selected "Custom"
-        if("Custom" %in% input$subgroups && length(input$subgroups)>1) { ## check other subgroups. 
+        if("Custom" %in% input$subgroups && length(input$subgroups)>1) { ## now select other subgroups. 
           new_subgroups <- setdiff(input$subgroups , "Custom")
           new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
           prev_selected_cell_lines(new_cell_lines)
           prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = new_cell_lines,
                             choices = cell_line_choices())
           updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
                             selected = new_subgroups,
                             choices = c("Custom",subgroups_choices()))
-          
-          
         }
         else if(is.null(input$subgroups)){  # when users deselect "Custom"
           prev_selected_cell_lines(NULL)
-          updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = NULL,
                             choices = cell_line_choices())
         }
@@ -108,12 +107,12 @@ testVsControl.batch.cellLineServer <- function(id, dataset) {
                             selected = "Custom",
                             choices = c("Custom",subgroups_choices()))
         }
-        else {
+        else { # just select other subgroups
           new_subgroups <- input$subgroups
           new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
           prev_selected_cell_lines(new_cell_lines)
           prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = new_cell_lines,
                             choices = cell_line_choices())
           updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
@@ -123,15 +122,29 @@ testVsControl.batch.cellLineServer <- function(id, dataset) {
       }
     }, ignoreNULL = F)
     
+    observeEvent(input$selectAllSubgroups, {
+      prev_selected_subgroups(subgroups_choices())
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = subgroups_choices(),
+                        choices = c("Custom",subgroups_choices()))
+    })
+    
+    observeEvent(input$deselectAllSubgroups, {
+      prev_selected_subgroups(NULL)
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = NULL,
+                        choices = c("Custom",subgroups_choices()))
+    })
+    
+    
     observeEvent(input$cell_lines, {
-      # ignoreNULL = T by default
       
       if("Custom" %in% input$subgroups){
         prev_selected_cell_lines(input$cell_lines)
       }
       else { 
         # check whether the selected cell line match those subgroups.
-        if(nrow(cl_sg_set()[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups, ]) != length(input$cell_lines)){
+        if(!is.null(cl_sg_set()) && length(unique(cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups ])) != length(input$cell_lines)){
           prev_selected_cell_lines(input$cell_lines)
           prev_selected_subgroups(input$subgroups)
           updatePickerInput(session, inputId = "subgroups", 
@@ -140,7 +153,7 @@ testVsControl.batch.cellLineServer <- function(id, dataset) {
                             choices = c("Custom",subgroups_choices()))
         }
       }
-    })
+    }, ignoreNULL = F)
     
     list(
       cellLines = reactive(input$cell_lines),

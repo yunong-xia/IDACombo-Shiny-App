@@ -12,8 +12,7 @@ twoDrugs.drugServer <- function(id, dataset) { #dataset is a reactive value
   moduleServer(id, function(input,output,session) {
     
     observeEvent(dataset(),{
-      data <- dataset()
-      drug_choices <- unique(data$Drug)
+      drug_choices <- unique(dataset()$Drug)
       updateSelectInput(session,"drug1",label = "Drug 1", choices = drug_choices)
       updateSelectInput(session,"drug2",label = "Drug 2", choices = drug_choices)
     })
@@ -25,36 +24,47 @@ twoDrugs.drugServer <- function(id, dataset) { #dataset is a reactive value
 }
 
 #select cell lines
-twoDrugs.sharedCellLineInput <- function(id) {
+twoDrugs.cellLineInput <- function(id) {
   ns <- NS(id)
   tagList(
     pickerInput(ns("subgroups"),"Select Cell Lines By Subgroups",
                 choices = NULL,
-                options = list(`actions-box` = TRUE,`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
+                options = list(`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
                 multiple = T),
-    pickerInput(ns("cell_lines"),"Cell-Line available for both drugs (Multiple)",
+    actionButton(ns("selectAllSubgroups"),"Select All Subgroups"),
+    actionButton(ns("deselectAllSubgroups"),"Deselect All Subgroups"),
+    pickerInput(ns("cell_lines"),"Select Cell Lines",
                 choices = list(
                   `Cancer Cell Lines` = NULL),
                 options = list(`actions-box` = TRUE,`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE,
                                `selected-text-format`= "count",
-                               `count-selected-text` = "{0} models choosed (on a total of {1})"),
+                               `count-selected-text` = "{0} subgroups chosen (on a total of {1})"),
                 multiple = T)
   )
 }
 
-twoDrugs.sharedCellLineServer <- function(id, dataset, selectedDrug1,selectedDrug2) { #dataset, selectedDrugs are reactive values
+twoDrugs.cellLineServer <- function(id, dataset) { #dataset, selectedDrugs are reactive values
   moduleServer(id, function(input,output,session) {
     
-    cell_line_choices <- reactive(sort(unique(dataset()$Cell_Line[dataset()$Drug %in% c(selectedDrug1(), selectedDrug2())])))
-    subgroups_choices <- reactive(sort(unique(dataset()$Cell_Line_Subgroup[dataset()$Drug %in% c(selectedDrug1(), selectedDrug2())])))
+    cl_sg_set <- reactive(
+      if(!is.null(dataset()))
+        distinct(dataset()[, c("Cell_Line","Cell_Line_Subgroup")])
+      else
+        NULL
+    )
     
-    cl_sg_set <- reactive(unique(dataset()[ dataset()$Drug %in% c(selectedDrug1(),selectedDrug2()), 
-                                            c("Cell_Line", "Cell_Line_Subgroup")] ))
+    cell_line_choices <- reactive(
+      unique(cl_sg_set()$Cell_Line)
+    )
     
-    observeEvent(c(dataset(), selectedDrug1(), selectedDrug2()), {
-      updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+    subgroups_choices <- reactive(
+      unique(cl_sg_set()$Cell_Line_Subgroup)
+    )
+    
+    observeEvent(c(dataset()), {
+      updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                         choices = cell_line_choices())
-      updatePickerInput(session, inputId = "subgroups", label = "Select All Cell Lines By Subgroups",
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
                         selected = NULL,
                         choices = c("Custom",subgroups_choices()))
     })
@@ -63,24 +73,23 @@ twoDrugs.sharedCellLineServer <- function(id, dataset, selectedDrug1,selectedDru
     prev_selected_subgroups <- reactiveVal(value = NULL)
     
     observeEvent(input$subgroups, {
+      
       if("Custom" %in% prev_selected_subgroups()) { ## Previously selected "Custom"
-        if("Custom" %in% input$subgroups && length(input$subgroups)>1) { ## check other subgroups. 
+        if("Custom" %in% input$subgroups && length(input$subgroups)>1) { ## now select other subgroups. 
           new_subgroups <- setdiff(input$subgroups , "Custom")
           new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
           prev_selected_cell_lines(new_cell_lines)
           prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = new_cell_lines,
                             choices = cell_line_choices())
           updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
                             selected = new_subgroups,
                             choices = c("Custom",subgroups_choices()))
-          
-          
         }
         else if(is.null(input$subgroups)){  # when users deselect "Custom"
           prev_selected_cell_lines(NULL)
-          updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = NULL,
                             choices = cell_line_choices())
         }
@@ -95,12 +104,12 @@ twoDrugs.sharedCellLineServer <- function(id, dataset, selectedDrug1,selectedDru
                             selected = "Custom",
                             choices = c("Custom",subgroups_choices()))
         }
-        else {
+        else { # just select other subgroups
           new_subgroups <- input$subgroups
           new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
           prev_selected_cell_lines(new_cell_lines)
           prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = new_cell_lines,
                             choices = cell_line_choices())
           updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
@@ -110,15 +119,29 @@ twoDrugs.sharedCellLineServer <- function(id, dataset, selectedDrug1,selectedDru
       }
     }, ignoreNULL = F)
     
+    observeEvent(input$selectAllSubgroups, {
+      prev_selected_subgroups(subgroups_choices())
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = subgroups_choices(),
+                        choices = c("Custom",subgroups_choices()))
+    })
+    
+    observeEvent(input$deselectAllSubgroups, {
+      prev_selected_subgroups(NULL)
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = NULL,
+                        choices = c("Custom",subgroups_choices()))
+    })
+    
+    
     observeEvent(input$cell_lines, {
-      # ignoreNULL = T by default
-      
+
       if("Custom" %in% input$subgroups){
         prev_selected_cell_lines(input$cell_lines)
       }
       else { 
         # check whether the selected cell line match those subgroups.
-        if(nrow(cl_sg_set()[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups, ]) != length(input$cell_lines)){
+        if(!is.null(cl_sg_set()) && length(unique(cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups ])) != length(input$cell_lines)){
           prev_selected_cell_lines(input$cell_lines)
           prev_selected_subgroups(input$subgroups)
           updatePickerInput(session, inputId = "subgroups", 
@@ -127,7 +150,8 @@ twoDrugs.sharedCellLineServer <- function(id, dataset, selectedDrug1,selectedDru
                             choices = c("Custom",subgroups_choices()))
         }
       }
-    })
+    }, ignoreNULL = F)
+    
     
     list(
       cellLines = reactive(input$cell_lines),
@@ -301,7 +325,7 @@ twoDrugs.ui <- function(id) {
   tagList(
     box(width = 3, status = "primary", solidHeader = TRUE, title="2 Drugs Input",
         twoDrugs.drugInput(ns("drugSelection")),
-        twoDrugs.sharedCellLineInput(ns("cellLineSelection")),
+        twoDrugs.cellLineInput(ns("cellLineSelection")),
         twoDrugs.doseInput(ns("doseSelection")),
         tags$hr(),
         twoDrugs.parametersInput(ns("parametersCheck")),
@@ -335,7 +359,7 @@ twoDrugs.server <- function(id, fileInfo) {
     
     selectedDrugs <- twoDrugs.drugServer("drugSelection", dataset)
     
-    selectedCellLinesAndSubgroups <- twoDrugs.sharedCellLineServer("cellLineSelection", dataset, selectedDrugs$d1, selectedDrugs$d2)
+    selectedCellLinesAndSubgroups <- twoDrugs.cellLineServer("cellLineSelection", dataset)
     
     selectedCellLines <- selectedCellLinesAndSubgroups$cellLines
     
@@ -402,7 +426,6 @@ twoDrugs.server <- function(id, fileInfo) {
     
     plot.data <- reactive({
       plot.data <- tableResult()[,c("Drug_1", "Drug_2", "Drug1Dose", "Drug2Dose", "Mean_Combo_Viability")]
-      plot.data = plot.data[!(plot.data$Drug1Dose == 0 & plot.data$Drug2Dose == 0),]
       plot.data$Group <- "Predicted Combination"
       plot.data$Group[plot.data$Drug1Dose == 0] <- paste0(plot.data$Drug_2[1], " Monotherapy")
       plot.data$Group[plot.data$Drug2Dose == 0] <- paste0(plot.data$Drug_1[1], " Monotherapy")
@@ -423,7 +446,7 @@ twoDrugs.server <- function(id, fileInfo) {
       origin <- which(groups == "Origin")
       groups <- groups[-origin]
       colors <- c("blue", "green", "white", "magenta")
-      rgl.open(useNULL=T)
+      rgl.open(useNULL = rgl.useNULL())
       scatter3d(x = plot.data()$Drug2Dose, y = plot.data()$Mean_Combo_Viability, z = plot.data()$Drug1Dose, 
                 surface = F, grid = F, ellipsoid = F, xlab = "", zlab = "", ylab = "", 
                 groups = plot.data()$Group, axis.ticks = F, axis.scales = T, axis.col = c("blue", "black", "darkgreen"), surface.col = colors)

@@ -1,6 +1,7 @@
-#Library we will use
-  ##Library for rendering
+
+#options
 options(rgl.useNULL = TRUE)
+
 
 library(shiny)
 library(shinydashboard)
@@ -18,6 +19,13 @@ library(ipc)
 library(car)
 library(shinyjs)
 
+#options(shiny.maxRequestSize = 300*1024^2)
+options(stringsAsFactors = FALSE)
+
+par3d(cex = 1)
+plan(multisession)
+
+
 #IDACombo Functionalities are implemented in each corresponding R file.
 source("dataset_import.R")
 source("two_drug.R")
@@ -27,11 +35,4 @@ source("control_plus_one_batch.R")
 source("test_vs_control.R")
 source("test_vs_control_batch.R")
 
-
-
-
-options(shiny.maxRequestSize = 300*1024^2)
-par3d(cex = 1)
-options(stringsAsFactors = FALSE)
-plan(multisession)
 

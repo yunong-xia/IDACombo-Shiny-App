@@ -27,7 +27,8 @@ datasetInput <- function(id) {
                   tabPanel("Preprovided Dataset", 
                            selectInput(ns("providedDataSet"), "Choose a preprovided dataset:",
                                        c("GDSC","CTRPv2")),
-                           actionButton(ns("button"),"Load")
+                           actionButton(ns("button"),"Load"),
+                           actionButton(ns("download"), "Download Dataset")
                            )
                   )
   )
@@ -76,6 +77,16 @@ datasetServer <- function(id) {
       fileInfo$extraCol <- input$extraCol
       fileInfo$type <- "custom"
     })
+    
+    output$download <- downloadHandler(
+      filename = function() {
+        paste(input$providedDataSet, Sys.Date(), '.txt', sep='')
+      },
+      content = function(con) {
+        data <- readRDS(paste0(getwd(),"/provided_dataset/", input$providedDataSet,"_Data.rds"))
+        write_delim(data, con, delim = "\t")
+      }
+    )
     
     list(dataset = reactive(fileInfo$dataset), extraCol = reactive(fileInfo$extraCol), type = reactive(fileInfo$type))
   })

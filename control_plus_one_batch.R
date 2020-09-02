@@ -33,8 +33,10 @@ controlPlusOne.batch.cellLineInput <- function(id) {
   tagList(
     pickerInput(ns("subgroups"),"Select Cell Lines By Subgroups",
                 choices = NULL,
-                options = list(`actions-box` = TRUE,`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
+                options = list(`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
                 multiple = T),
+    actionButton(ns("selectAllSubgroups"),"Select All Subgroups"),
+    actionButton(ns("deselectAllSubgroups"),"Deselect All Subgroups"),
     pickerInput(ns("cell_lines"),"Cell-Line available for both drugs (Multiple)",
                 choices = list(
                   `Cancer Cell Lines` = NULL),
@@ -62,12 +64,10 @@ controlPlusOne.batch.cellLineServer <- function(id, dataset) {
       unique(cl_sg_set()$Cell_Line_Subgroup)
     )
     
-    
-    
     observeEvent(c(dataset()), {
-      updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+      updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                         choices = cell_line_choices())
-      updatePickerInput(session, inputId = "subgroups", label = "Select All Cell Lines By Subgroups",
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
                         selected = NULL,
                         choices = c("Custom",subgroups_choices()))
     })
@@ -76,24 +76,23 @@ controlPlusOne.batch.cellLineServer <- function(id, dataset) {
     prev_selected_subgroups <- reactiveVal(value = NULL)
     
     observeEvent(input$subgroups, {
+      
       if("Custom" %in% prev_selected_subgroups()) { ## Previously selected "Custom"
-        if("Custom" %in% input$subgroups && length(input$subgroups)>1) { ## check other subgroups. 
+        if("Custom" %in% input$subgroups && length(input$subgroups)>1) { ## now select other subgroups. 
           new_subgroups <- setdiff(input$subgroups , "Custom")
           new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
           prev_selected_cell_lines(new_cell_lines)
           prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = new_cell_lines,
                             choices = cell_line_choices())
           updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
                             selected = new_subgroups,
                             choices = c("Custom",subgroups_choices()))
-          
-          
         }
         else if(is.null(input$subgroups)){  # when users deselect "Custom"
           prev_selected_cell_lines(NULL)
-          updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = NULL,
                             choices = cell_line_choices())
         }
@@ -108,12 +107,12 @@ controlPlusOne.batch.cellLineServer <- function(id, dataset) {
                             selected = "Custom",
                             choices = c("Custom",subgroups_choices()))
         }
-        else {
+        else { # just select other subgroups
           new_subgroups <- input$subgroups
           new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
           prev_selected_cell_lines(new_cell_lines)
           prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines", label = "Cell-Line available for both drugs (Multiple)",
+          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
                             selected = new_cell_lines,
                             choices = cell_line_choices())
           updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
@@ -123,15 +122,29 @@ controlPlusOne.batch.cellLineServer <- function(id, dataset) {
       }
     }, ignoreNULL = F)
     
+    observeEvent(input$selectAllSubgroups, {
+      prev_selected_subgroups(subgroups_choices())
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = subgroups_choices(),
+                        choices = c("Custom",subgroups_choices()))
+    })
+    
+    observeEvent(input$deselectAllSubgroups, {
+      prev_selected_subgroups(NULL)
+      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = NULL,
+                        choices = c("Custom",subgroups_choices()))
+    })
+    
+    
     observeEvent(input$cell_lines, {
-      # ignoreNULL = T by default
       
       if("Custom" %in% input$subgroups){
         prev_selected_cell_lines(input$cell_lines)
       }
       else { 
         # check whether the selected cell line match those subgroups.
-        if(nrow(cl_sg_set()[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups, ]) != length(input$cell_lines)){
+        if(!is.null(cl_sg_set()) && length(unique(cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups ])) != length(input$cell_lines)){
           prev_selected_cell_lines(input$cell_lines)
           prev_selected_subgroups(input$subgroups)
           updatePickerInput(session, inputId = "subgroups", 
@@ -140,7 +153,7 @@ controlPlusOne.batch.cellLineServer <- function(id, dataset) {
                             choices = c("Custom",subgroups_choices()))
         }
       }
-    })
+    }, ignoreNULL = F)
     
     list(
       cellLines = reactive(input$cell_lines),
@@ -310,6 +323,8 @@ controlPlusOne.batch.server <- function(id,fileInfo) {
     
     checkedParameters <- controlPlusOne.batch.parametersServer("parametersCheck_batch", fileType)
     
+    clThreshold <- controlPlusOne.batch.cellLinesThresholdServer("cellLineThreshold")
+    
     nSim <- controlPlusOne.batch.nSimulationServer("n_simulation")
     
     efficacyMetric <- controlPlusOne.batch.efficacyMetricServer("efficacyMetric_batch", fileType)
@@ -365,6 +380,7 @@ controlPlusOne.batch.server <- function(id,fileInfo) {
         drugList[[i]] <- strsplit(ctInput()$Control_Treatment[i], ",")[[1]]
         ###    2. control treatment doses
         doseList[[i]] <- strsplit(ctInput()$Doses[i], ",")[[1]]
+        
         ###    3. drug to add
         drug_to_add_arr[i] <- ctInput()$Drug_To_Add[i]
         ### error handling of data retrieve
@@ -373,21 +389,21 @@ controlPlusOne.batch.server <- function(id,fileInfo) {
         )
         
         ### update the shared cell lines iteratively and store the final result into the list
-        shared_cl[[i]] <- all_cl
+        shared_cl[[i]] <- selectedCellLine()
         for(j in 1:length(drugList[[i]])){
           shared_cl[[i]] <- intersect(shared_cl[[i]], 
                                   unique(dataset()$Cell_Line[ dataset()$Drug == drugList[[i]][j]
                                                               & dataset()$Drug_Dose == doseList[[i]][j] ])
                                       )
+
         }
         shared_cl[[i]] <- intersect(shared_cl[[i]],
                                unique(dataset()$Cell_Line[ dataset()$Drug == ctInput()$Drug_To_Add[i] ]))
-        shared_cl[[i]] <- shared_cl[[i]][ shared_cl[[i]] %in% selectedCellLine() ]
         ###   count the number of shared cell lines
         cl_num[i] <- length(shared_cl[[i]])
         ###   generate extra error message
-        if(cl_num[i] < 2) {
-          msg <- paste0(msg, "Row ", i, " doesn't have enough cell lines (>=2)\n")
+        if(cl_num[i] < clThreshold()) {
+          msg <- paste0(msg, "Row ", i, ": shared cell lines are less than threshold\n")
         }
         else {
           msg <- paste0(msg, "Row ", i, " used ", cl_num[i], " cell lines\n")
