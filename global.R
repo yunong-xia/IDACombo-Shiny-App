@@ -19,7 +19,7 @@ library(ipc)
 library(car)
 library(shinyjs)
 library(shinybusy)
-library(readxl)
+library(openxlsx)
 
 options(shiny.maxRequestSize = 300*1024^2)
 options(stringsAsFactors = FALSE)

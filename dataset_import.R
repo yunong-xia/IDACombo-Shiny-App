@@ -13,6 +13,8 @@ datasetInput <- function(id) {
                            h6("Efficacy_SE : Efficacy standard errors (if contain)"),
                            h6("Cell_Line_Subgroup : subgroups of cancer cell lines (if contain)"),
                            
+                           downloadButton(ns('sampleFil'), 'Download Sample Input File'),
+                           
                            checkboxGroupInput(ns("extraCol"), "Does the file contain columns:",
                                               c("Efficacy Standard Error" = "seCol",
                                                 "Cancer cell line subgroups" = "subCol")
@@ -28,7 +30,7 @@ datasetInput <- function(id) {
                            selectInput(ns("providedDataSet"), "Choose a preprovided dataset:",
                                        c("GDSC","CTRPv2")),
                            actionButton(ns("button"),"Load"),
-                           actionButton(ns("download"), "Download Dataset")
+                           downloadButton(ns("download"), "Download Dataset")
                            )
                   )
   )
@@ -42,6 +44,11 @@ datasetServer <- function(id) {
     fileInfo <- reactiveValues(dataset = NULL, extraCol = NULL, type = NULL)
     
     observeEvent(input$button, {
+      show_modal_spinner(
+        spin = "self-building-square",
+        color = "firebrick",
+        text = "Please wait..."
+      )
       if(input$providedDataSet == "GDSC"){
         # should be modified if the location of the file changes.
         GDSC_Data_path <- paste0(getwd(),"/provided_dataset/GDSC_Data.rds")
@@ -56,6 +63,7 @@ datasetServer <- function(id) {
         fileInfo$extraCol <- c("seCol", "subCol")
         fileInfo$type <- "CTRPv2"
       }
+      remove_modal_spinner()
     })
     
     observeEvent(input$dataset, {
@@ -80,11 +88,21 @@ datasetServer <- function(id) {
     
     output$download <- downloadHandler(
       filename = function() {
-        paste(input$providedDataSet, Sys.Date(), '.txt', sep='')
+        paste(input$providedDataSet, '-',Sys.Date(), '.txt', sep='')
       },
       content = function(con) {
         data <- readRDS(paste0(getwd(),"/provided_dataset/", input$providedDataSet,"_Data.rds"))
         write_delim(data, con, delim = "\t")
+      }
+    )
+    
+    output$sampleFile <- downloadHandler(
+      filename = function() {
+        "Sample-Input.xlsx"
+      },
+      content = function(file) {
+        header <- c("Cell_Line", "Drug", "Drug_Dose", "Efficacy","Efficacy_SE", "Cell_Line_Subgroup")
+        write.xlsx(header, con, delim = "\t")
       }
     )
     
