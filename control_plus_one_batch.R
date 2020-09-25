@@ -326,7 +326,6 @@ controlPlusOne.batch.ui <- function(id) {
         controlPlusOne.batch.cellLineInput(ns("cellLineSelection")),
         tags$hr(),
         controlPlusOne.batch.parametersInput(ns("parametersCheck")),
-        controlPlusOne.batch.nSimulationInput(ns("n_simulation")),
         controlPlusOne.batch.efficacyMetricInput(ns("efficacyMetric")),
         tags$hr(),
         actionButton(ns("button"), "RUN")

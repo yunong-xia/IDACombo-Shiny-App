@@ -200,7 +200,6 @@ twoDrugs.batch.ui <- function(id) {
         twoDrugs.batch.cellLinesThresholdInput(ns("cellLinesThreshold")),
         tags$hr(),
         twoDrugs.parametersInput(ns("parametersCheck_batch")),
-        twoDrugs.batch.nSimulationInput(ns("n_simulation")),
         twoDrugs.efficacyMetricInput(ns("efficacyMetric_batch")),
         tags$hr(),
         actionButton(ns("button_batch"), "RUN")

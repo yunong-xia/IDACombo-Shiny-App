@@ -350,7 +350,6 @@ testVsControl.ui <- function(id) {
         testVsControl.cellLineInput(ns("cellLineSelection")),
         tags$hr(),
         testVsControl.parametersInput(ns("parametersCheck")),
-        testVsControl.nSimulationInput(ns("n_simulation")),
         testVsControl.efficacyMetricInput(ns("efficacyMetric")),
         tags$hr(),
         actionButton(ns("button"), "RUN")

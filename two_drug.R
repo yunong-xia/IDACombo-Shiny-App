@@ -318,7 +318,6 @@ twoDrugs.ui <- function(id) {
         twoDrugs.doseInput(ns("doseSelection")),
         tags$hr(),
         twoDrugs.parametersInput(ns("parametersCheck")),
-        twoDrugs.nSimulationInput(ns("n_simulation")),
         twoDrugs.efficacyMetricInput(ns("efficacyMetric")),
         tags$hr(),
         actionButton(ns("button"), "RUN")

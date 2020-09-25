@@ -327,7 +327,6 @@ controlPlusOne.ui <- function(id) {
         controlPlusOne.cellLineInput(ns("cellLineSelection")),
         tags$hr(),
         controlPlusOne.parametersInput(ns("parametersCheck")),
-        controlPlusOne.nSimulationInput(ns("n_simulation")),
         controlPlusOne.efficacyMetricInput(ns("efficacyMetric")),
         tags$hr(),
         actionButton(ns("button"), "RUN")

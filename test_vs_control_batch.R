@@ -294,7 +294,6 @@ testVsControl.batch.ui <- function(id) {
         testVsControl.batch.cellLineInput(ns("cellLineSelection")),
         tags$hr(),
         testVsControl.batch.parametersInput(ns("parametersCheck_batch")),
-        testVsControl.batch.nSimulationInput(ns("n_sim")),
         testVsControl.batch.efficacyMetricInput(ns("efficacyMetric_batch")),
         tags$hr(),
         actionButton(ns("button_batch"), "RUN")
