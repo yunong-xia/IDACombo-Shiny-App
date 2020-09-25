@@ -80,11 +80,11 @@ datasetServer <- function(id) {
     
     output$download <- downloadHandler(
       filename = function() {
-        paste(input$providedDataSet, Sys.Date(), '.txt', sep='')
+        "Sample-Input.xlsx"
       },
-      content = function(con) {
-        data <- readRDS(paste0(getwd(),"/provided_dataset/", input$providedDataSet,"_Data.rds"))
-        write_delim(data, con, delim = "\t")
+      content = function(file) {
+        header <- c("Cell_Line", "Drug", "Drug_Dose", "Efficacy","Efficacy_SE", "Cell_Line_Subgroup")
+        write.xlsx(header, con, delim = "\t")
       }
     )
     
