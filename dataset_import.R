@@ -87,13 +87,13 @@ datasetServer <- function(id) {
     })
     
     output$download <- downloadHandler(
-      filename = function() {
-        paste(input$providedDataSet, '-',Sys.Date(), '.txt', sep='')
-      },
-      content = function(con) {
-        data <- readRDS(paste0(getwd(),"/provided_dataset/", input$providedDataSet,"_Data.rds"))
-        write_delim(data, con, delim = "\t")
-      }
+        filename = function() {
+                paste(input$providedDataSet, '-',Sys.Date(), '.txt', sep='')
+              },
+              content = function(con) {
+                data <- readRDS(paste0(getwd(),"/provided_dataset/", input$providedDataSet,"_Data.rds"))
+                write_delim(data, con, delim = "\t")
+              }
     )
     
     output$sampleFile <- downloadHandler(

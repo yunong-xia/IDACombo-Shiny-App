@@ -33,8 +33,6 @@ devtools::install_github("Alexander-Ling/IDACombo")
 ## App Usage
 Data should be loaded first. The shiny app has already provided some datasets which you can load. Users can also load their custom shiny app. Instructions are on the Dataset Loader page.
 
-In batch versions of Control Plus One and Test Vs Control, users are expected to upload a text file specifying their input. Instructions are shown on each page.
-
 Manuscript of IDACombo functionalities is available in the package. You can learn details of what those functionalities do.
 
 
