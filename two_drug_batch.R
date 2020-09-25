@@ -181,25 +181,6 @@ twoDrugs.batch.cellLineServer <- function(id, dataset) {
 
 
 
-twoDrugs.batch.nSimulationInput <- function(id) {
-  ns <- NS(id)
-  numericInput(inputId = ns("nSim"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)
-}
-
-twoDrugs.batch.nSimulationServer <- function(id) {
-  moduleServer(id, function(input,output,session){
-    reactive(input$nSim)
-  })
-}
-
-
-
-
-
-
-
-
-
 
 
 
@@ -225,10 +206,11 @@ twoDrugs.batch.ui <- function(id) {
         actionButton(ns("button_batch"), "RUN")
     ),
     box(width = 9, status = "primary", solidHeader = TRUE, title="2Drug Batch Process Result",
-        downloadButton(ns('downloadData_batch'), 'Download DataTable'),
-        wellPanel(verbatimTextOutput(ns("log"))),
+        downloadButton(ns('downloadData'), 'Download DataTable'),
+        downloadButton(ns('downloadLog'), 'Download Log File'),
         conditionalPanel(condition = "input.button_batch",ns = ns, tabsetPanel(type = "tabs",
-                                                                               tabPanel("Table", withSpinner(dataTableOutput(ns("table_batch")))))
+                                                                               tabPanel("Table", withSpinner(dataTableOutput(ns("table")))),
+                                                                               tabPanel('Log', withSpinner(verbatimTextOutput(ns('log')))))
         )
     )
   )
@@ -257,185 +239,106 @@ twoDrugs.batch.server <- function(id, fileInfo) {
 
     checkedParameters <- twoDrugs.parametersServer("parametersCheck_batch", fileType)
     
-    nSim <- twoDrugs.batch.nSimulationServer("n_simulation")
+    nSim <- checkedParameters$nSim
 
     efficacyMetric <- twoDrugs.efficacyMetricServer("efficacyMetric_batch", fileType)
     
     clThreshold <- twoDrugs.batch.cellLinesThresholdServer("cellLinesThreshold")
     
     # compute result and generate some message
-    logText <- reactiveVal(NULL)
+    warningMessage <- reactiveVal(NULL)
     
     tableResult <- reactiveVal(NULL)
     
-    output$log <- renderText(logText())
+    output$log <- renderText({
+       warningMessage()
+    })
     
-    output$table_batch <- renderDataTable(tableResult(),
-                                          options = list(scrollX = TRUE))
+    output$table <- renderDataTable({
+        tableResult()[, names(tableResult()) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
+      },
+      options = list(scrollX = TRUE))
     
     output$downloadData <- downloadHandler(
       filename = function() {
         paste('data-', Sys.Date(), '.txt', sep='')
       },
-      content = function(con) {
-        write_delim(tableResult(), con, delim = "\t")
+      content = function(file) {
+        write_delim(tableResult(), file, delim = "\t")
+      }
+    )
+    
+    output$downloadLog <- downloadHandler(
+      filename = function() {
+        paste('log-', Sys.Date(), '.txt', sep='')
+      },
+      content = function(file) {
+        write(warningMessage(), file)
       }
     )
     
     
     observeEvent(input$button_batch,{
-      if(is.null(dataset())){
-        logText("Please Upload Your Data First!")
-        return()
-      }
-      logText("")
+      validate(
+        need(!is.null(dataset()), "Please upload your data"),
+        need(!is.null(selectedDrugs()), "Please select drugs"),
+        need(!is.null(selectedCellLines()), "Please select Cell lines")
+      )
       selected_drug <- selectedDrugs()
       pairs <- lapply(1:(length(selected_drug)-1), function(i){
-        expand.grid(selected_drug[i], selected_drug[(i+1):length(selected_drug)])
+        expand.grid(selected_drug[i], selected_drug[(i+1):length(selected_drug)],stringsAsFactors = F)
       }) %>%
         rbindlist()
-      cl<-selectedCellLines()
-      data <- dataset()
-      shared_cl_numbers <- pairs %>%
-        apply(1,function(p){
-          p = as.vector(t(p))
-          d1 = p[1]
-          d2 = p[2]
-          cl1 = unique(data$Cell_Line[data$Drug == d1])
-          cl2 = unique(data$Cell_Line[data$Drug == d2])
-          shared = cl1[cl1%in%cl2]
-          length(which(shared %in% cl))
-        })
       
-      #create an error msg
-      unusable_index = which(shared_cl_numbers < clThreshold())
-      msg <- ""
-      if(length(unusable_index) > 0) {
-        for(i in 1:length(unusable_index)){
-          index = unusable_index[i]
-          p = as.vector(t(pairs[index,]))
-          msg = paste0(msg,"Combo ", p[1], " + ", p[2], " have only ", shared_cl_numbers[index], " shared cell lines\n")
-        }
-        #assign error msg to the reactive
-        logText(paste0("Error:\n",msg))
-      } else {
-        logText("No errors\n")
-      }
-      
-      ##
-      if("seCol" %in% extraCol())
-        eff_se_col = "Efficacy_SE"
-      else
-        eff_se_col = NULL
-      #filter by threshold
-      usable_index <- which(shared_cl_numbers >= clThreshold())
-      usable_pairs <- pairs[usable_index,]
-      n_usable_cl <- shared_cl_numbers[usable_index]
-      monoDataList <- lapply(selectedDrugs(),function(x){data[data$Drug == x,]})
-      # localize reactive value in order to be used in getRes function.
-      names(monoDataList) <- selectedDrugs()
-      isLowerEfficacy <- checkedParameters$isLowerEfficacy()
-      uncertainty <- checkedParameters$uncertainty()
-      comboscore <- checkedParameters$comboscore()
-      averageDuplicate <- checkedParameters$averageDuplicate()
-      efficacy_metric <- efficacyMetric()
-      n_sim <- nSim()
-      getRes <- function(p){
-        p = as.vector(t(p))
-        monoData = rbindlist(list(monoDataList[[p[1]]],monoDataList[[p[2]]]))
-        ls <- IDAPredict.2drug(
-          monoData,
-          Cell_Line_Name_Column = "Cell_Line",
-          Drug_Name_Column = "Drug",
-          Drug_Concentration_Column = "Drug_Dose",
-          Efficacy_Column = "Efficacy",
-          LowerEfficacyIsBetterDrugEffect = isLowerEfficacy,
-          Efficacy_Metric_Name = efficacy_metric,
-          Drug1 = p[1],
-          Drug2 = p[2],
-          Calculate_Uncertainty = uncertainty,
-          Efficacy_SE_Column = eff_se_col,
-          n_Simulations = n_sim,
-          Calculate_IDAcomboscore_And_Hazard_Ratio = comboscore,
-          Average_Duplicate_Records = averageDuplicate
-        )
-      }
-      
-      #A variable store the result
-      res <- NULL
-      
-      if(nrow(usable_pairs) == 0) {
-        res <- NULL
-      }
-      else if(nrow(usable_pairs) <= 30) {
-        withProgress(message = 'Computing...', value = 0, {
-          res_list <- list()
-          for(i in nrow(usable_pairs)) {
-            res_list <- c(res_list, list(getRes(usable_pairs[i,])))
-            incProgress(1/nrow(usable_pairs))
-          }
-          res <- res_list %>%
-            lapply(function(x){cbind(Drug_1 = x[["Drug1"]],
-                                                      Drug_2 = x[["Drug2"]],
-                                                      x[["Efficacy_Predictions"]],
-                                                      Numbers_of_Used_Cell_Lines = length(x[["Cell_Line_Used"]]))}
-          ) %>%
-            rbindlist()
-        })
-      }
-      else{
-        progress = AsyncProgress$new(message="Computing...")
-        res_list <- list()
-        Runs = 4
-        for(i in 1:Runs){
-          range <- floor(length(usable_index)/Runs)
-          pair_seq <- ((i-1)*range+1):(i*range)
-          #multiprocess
-          res_list[[i]] <- future({
-            subRes <- list()
-            for(j in pair_seq){
-              subRes<-c(subRes,list(getRes(usable_pairs[j,])))
-              progress$inc(1/length(usable_index))
+      warning_msg <- ""
+      res_list <- vector("list", length = length(pairs))
+      monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines(),]
+      withProgress(message = "Computing...", value = 0, {
+        for(i in 1:nrow(pairs)) {
+          #get mono data
+          res_list[[i]] <- withCallingHandlers(
+            tryCatch(
+              expr = {
+                res <- IDAPredict.2drug(
+                  Monotherapy_Data = monotherapy_data,
+                  Cell_Line_Name_Column = "Cell_Line",
+                  Drug_Name_Column = "Drug",
+                  Drug_Concentration_Column = "Drug_Dose",
+                  Efficacy_Column = "Efficacy",
+                  LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEff(),
+                  Efficacy_Metric_Name = efficacyMetric(),
+                  Drug1 = as.character(pairs[i,1]),
+                  Drug2 = as.character(pairs[i,2]),
+                  Calculate_Uncertainty = checkedParameters$uncertainty(),
+                  Efficacy_SE_Column = eff_se_col,
+                  n_Simulations = nSim(),
+                  Calculate_IDAcomboscore_And_Hazard_Ratio = checkedParameters$comboscore(),
+                  Average_Duplicate_Records = checkedParameters$averageDuplicate()
+                )
+                if(!is.data.frame(res[[1]])){
+                  NULL
+                } else{
+                  res <- cbind(
+                    Drug1 = res$Drug1,
+                    Drug2 = res$Drug2,
+                    res$Efficacy_Predictions,
+                    Cell_Lines_Used = paste(res$Cell_Lines_Used, collapse = ", "),
+                    Number_of_Cell_Line_Used = length(res$Cell_Lines_Used))
+                  res
+                }
+              }),
+            warning = function(w) {
+              warning_msg <<- append(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+              invokeRestart("muffleWarning")
             }
-            subRes <- subRes %>%
-              lapply(function(x){cbind(Drug_1 = x[["Drug1"]],
-                                       Drug_2 = x[["Drug2"]],
-                                       x[["Efficacy_Predictions"]],
-                                       Numbers_of_Used_Cell_Lines = length(x[["Cell_Line_Used"]]))}
-                     ) %>%
-              rbindlist()
-            return(subRes)
-          })
+          )
+          incProgress(1/nrow(pairs))
         }
-        #then solve for remainder
-        remainder <- future({
-          if(length(usable_index) %% Runs != 0){
-            range <- floor(length(usable_index)/Runs)
-            pair_seq <- (Runs*range+1):length(usable_index)
-            subRes <- list()
-            for(j in pair_seq){
-              subRes<-c(subRes,list(getRes(usable_pairs[j,])))
-              progress$inc(1/length(usable_index))
-            }
-            subRes <- subRes %>%
-              lapply(function(x){cbind(Drug_1 = x[["Drug1"]],
-                                       Drug_2 = x[["Drug2"]],
-                                       x[["Efficacy_Predictions"]],
-                                       Numbers_of_Used_Cell_Lines = length(x[["Cell_Line_Used"]]))}
-              ) %>%
-              rbindlist()
-            return(subRes)
-          }else{
-            return(data.frame())
-          }
-        })
-  
-        res <- promise_all(a = res_list[[1]], b = res_list[[2]], c = res_list[[3]], d = res_list[[4]], e = remainder) %...>%
-          with({
-            rbindlist(list(a,b,c,d,e))
-          })
-      }
-      tableResult(res)
+      })
+      if(nchar(warning_msg) == 0)
+        warning_msg <- "No warning messages"
+      warningMessage(warning_msg)
+      tableResult(rbindlist(res_list))
     })
 
   })

@@ -18,8 +18,10 @@ library(promises)
 library(ipc)
 library(car)
 library(shinyjs)
+library(shinybusy)
+library(readxl)
 
-#options(shiny.maxRequestSize = 300*1024^2)
+options(shiny.maxRequestSize = 300*1024^2)
 options(stringsAsFactors = FALSE)
 
 par3d(cex = 1)

@@ -258,6 +258,8 @@ testVsControl.parametersInput <- function(id) {
              ),
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
+    conditionalPanel(condition = "input.uncertainty", ns = ns,
+                     numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
     checkboxInput(ns("comboscore"), "Calculate IDAComboscore And HazardRatios") %>%
       helper(type = "inline",
              title = "Calculate IDAComboscore And HazardRatios",
@@ -294,7 +296,8 @@ testVsControl.parametersServer <- function(id, fileType) {
     list(isLowerEfficacy = reactive(input$isLowerEfficacy),
          uncertainty = reactive(input$uncertainty),
          comboscore = reactive(input$comboscore),
-         averageDuplicate = reactive(input$averageDuplicate))
+         averageDuplicate = reactive(input$averageDuplicate),
+         nSim = reactive(input$nSimulation))
   })
 }
 
@@ -387,7 +390,7 @@ testVsControl.server <- function(id, fileInfo) {
     
     checkedParameters <- testVsControl.parametersServer("parametersCheck", fileType)
     
-    nSim <- testVsControl.nSimulationServer("n_simulation")
+    nSim <- checkedParameters$nSim
     
     efficacyMetric <- testVsControl.efficacyMetricServer("efficacyMetric", fileType)
     

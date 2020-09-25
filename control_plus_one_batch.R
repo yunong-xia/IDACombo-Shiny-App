@@ -1,32 +1,78 @@
-controlPlusOne.batch.fileInput <- function(id) {
+
+# control treatment
+controlPlusOne.batch.controlTreatmentInput <- function(id) {
   ns <- NS(id)
-  fileInput(ns("controlTreatmentFile"), "Upload your input control treatment files",
-            accept = c("text/csv",
-                       "text/comma-separated-values,text/plain",
-                       ".csv")
-  )
+  pickerInput(ns("drugs"),"Select Drugs in Treatment (Multiple)",
+              choices = NULL,
+              options = list(`actions-box` = TRUE,`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
+              multiple = T)
 }
 
-controlPlusOne.batch.fileServer <- function(id) {
+controlPlusOne.batch.controlTreatmentServer <- function(id, dataset) {
   moduleServer(id, function(input,output,session) {
-    
-    fileContent <- reactive({
-      inFile <- input$controlTreatmentFile
-      if(is.null(inFile))
-        return(NULL)
-      content <- read.delim(input$controlTreatmentFile$datapath)
-      headers <- names(content)
-      fixedHeaderNames <- c("Control_Treatment", "Doses", "Drug_To_Add")
-      missedCol <- setdiff(fixedHeaderNames, headers)
-      validate(
-        need(length(missedCol) == 0, paste0("Warning: Please modify the column names to : ", missedCol))
-      )
-      content
+    observeEvent(dataset(), {
+      drug_choices <- unique(dataset()$Drug)
+      updatePickerInput(session, inputId = "drugs", label = "Select drugs in treatment (Multiple)",
+                        choices = drug_choices)
     })
     
-    fileContent
+    reactive(input$drugs)
   })
 }
+
+
+controlPlusOne.batch.doseInput <- function(id) {
+  ns <- NS(id)
+  uiOutput(ns("doseSelect"))
+}
+
+controlPlusOne.batch.doseServer <- function(id,dataset,selectedControlTreatment) {
+  moduleServer(id, function(input,output,session) {
+    output$doseSelect <- renderUI({
+      if(length(selectedControlTreatment()) > 0) {
+        ns <- session$ns
+        start <- Sys.time()
+        l <- lapply(1:length(selectedControlTreatment()), function(i) {
+          dose_choices <- unique(dataset()$Drug_Dose[ dataset()$Drug == selectedControlTreatment()[i] ])
+          selectInput(ns(paste0("dose",i)), paste0("Select dose for Drug: ",selectedControlTreatment()[i]),
+                      choices = dose_choices)
+        })
+        end <- Sys.time()
+        l
+      }
+    })
+    
+    #return a vector of selected drug doses
+    reactive({
+      lapply(1:length(selectedControlTreatment()), function(i) {
+        (input[[paste0("dose",i)]])
+      }) %>%
+        unlist()
+    })
+  })
+}
+
+
+# plusOne treatment
+controlPlusOne.batch.drugToAddInput <- function(id) {
+  ns <- NS(id)
+  selectInput(ns("drugToAdd"), label = "Drug to Add (Multiple Drugs)", choices = NULL, multiple = T)
+}
+
+
+controlPlusOne.batch.drugToAddServer <- function(id,dataset,selectedControlTreatment) {
+  moduleServer(id, function(input,output,session) {
+    observeEvent(c(dataset(),selectedControlTreatment()), {
+      to_add_choices <- setdiff(unique(dataset()$Drug), selectedControlTreatment())
+      updateSelectInput(session, inputId = "drugToAdd", label = "Drug to Add",
+                        choices = to_add_choices)
+    })
+    
+    reactive(input$drugToAdd)
+  })
+}
+
+
 
 controlPlusOne.batch.cellLineInput <- function(id) {
   ns <- NS(id)
@@ -47,8 +93,11 @@ controlPlusOne.batch.cellLineInput <- function(id) {
   )
 }
 
+
+#shared among all the selected Drugs
 controlPlusOne.batch.cellLineServer <- function(id, dataset) {
   moduleServer(id, function(input,output,session) {
+    
     cl_sg_set <- reactive(
       if(!is.null(dataset()))
         distinct(dataset()[, c("Cell_Line","Cell_Line_Subgroup")])
@@ -160,11 +209,11 @@ controlPlusOne.batch.cellLineServer <- function(id, dataset) {
       subgroups = reactive(input$subgroups)
     )
   })
-  
 }
 
 
 
+# 2Drug parameters and there helpers
 controlPlusOne.batch.parametersInput <- function(id) {
   ns <- NS(id)
   tagList(
@@ -187,6 +236,8 @@ controlPlusOne.batch.parametersInput <- function(id) {
              ),
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
+    conditionalPanel(condition = "input.uncertainty", ns = ns,
+                     numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
     checkboxInput(ns("comboscore"), "Calculate IDAComboscore And HazardRatios") %>%
       helper(type = "inline",
              title = "Calculate IDAComboscore And HazardRatios",
@@ -223,7 +274,8 @@ controlPlusOne.batch.parametersServer <- function(id, fileType) {
     list(isLowerEfficacy = reactive(input$isLowerEfficacy),
          uncertainty = reactive(input$uncertainty),
          comboscore = reactive(input$comboscore),
-         averageDuplicate = reactive(input$averageDuplicate))
+         averageDuplicate = reactive(input$averageDuplicate),
+         nSim = reactive(input$nSimulation))
   })
 }
 
@@ -238,7 +290,6 @@ controlPlusOne.batch.nSimulationServer <- function(id) {
     reactive(input$nSim)
   })
 }
-
 
 #efficacy metric input
 controlPlusOne.batch.efficacyMetricInput <- function(id) {
@@ -263,49 +314,37 @@ controlPlusOne.batch.efficacyMetricServer <- function(id, fileType) {
 }
 
 
-controlPlusOne.batch.cellLinesThresholdInput <- function(id) {
-  ns <- NS(id)
-  numericInput(inputId = ns("clThreshold"), label = "Cell Lines Number Threshold", value = 10, min = 2, max = 100)
-}
-
-controlPlusOne.batch.cellLinesThresholdServer <- function(id) {
-  moduleServer(id, function(input,output,server){
-    reactive(input$clThreshold)
-  })
-}
-
-
 
 
 controlPlusOne.batch.ui <- function(id) {
   ns <- NS(id)
   tagList(
-    box(width = NULL, status = "primary", solidHeader = TRUE, title="Control Treatment Input",
-        h5("Please upload a text file containig control treatments information."),
-        h6("Before uploading your file, please modify the header name to:"),
-        h6("Control_Treatment;"),
-        h6("Doses"),
-        h6("Drug_To_Add"),
-        h6("for each control treatment and its corresponding doses, splite each element by ','"),
-        controlPlusOne.batch.fileInput(ns("ctFile")),
-        controlPlusOne.batch.cellLinesThresholdInput(ns("cellLineThreshold")),
+    box(width = 3, status = "primary", solidHeader = TRUE, title="Control Plus One Input",
+        controlPlusOne.batch.controlTreatmentInput(ns("controlTreatmentSelection")),
+        controlPlusOne.batch.doseInput(ns("doseSelection")),
+        controlPlusOne.batch.drugToAddInput(ns("drugToAddSelection")),
         controlPlusOne.batch.cellLineInput(ns("cellLineSelection")),
         tags$hr(),
-        controlPlusOne.batch.parametersInput(ns("parametersCheck_batch")),
+        controlPlusOne.batch.parametersInput(ns("parametersCheck")),
         controlPlusOne.batch.nSimulationInput(ns("n_simulation")),
-        controlPlusOne.batch.efficacyMetricInput(ns("efficacyMetric_batch")),
+        controlPlusOne.batch.efficacyMetricInput(ns("efficacyMetric")),
         tags$hr(),
-        actionButton(ns("button_batch"), "RUN")
+        actionButton(ns("button"), "RUN")
     ),
-    box(width = NULL, status = "primary", solidHeader = TRUE, title = "Result",
-        downloadButton(ns('downloadData_batch'), 'Download DataTable'),
-        wellPanel(verbatimTextOutput(ns("log"))),
-        conditionalPanel(condition = "input.button_batch",ns = ns, withSpinner(DT::dataTableOutput(ns("table_batch")))  
-        ))
+    box(width = 9, status = "primary", solidHeader = TRUE, title="Control Plus One Result",
+        downloadButton(ns('downloadData'), 'Download DataTable'),
+        downloadButton(ns('downloadLog'), 'Download Log File'),
+        conditionalPanel(condition = "input.button",ns = ns, 
+                         tabsetPanel(type = "tabs",
+                                     tabPanel("Table", withSpinner(DT::dataTableOutput(ns("table")))),
+                                     tabPanel("Log", withSpinner(wellPanel(verbatimTextOutput(ns("log"))))))  
+        )
+    )
+    
   )
 }
 
-controlPlusOne.batch.server <- function(id,fileInfo) {
+controlPlusOne.batch.server <- function(id, fileInfo) {
   moduleServer(id, function(input,output,session) {
     dataset <- fileInfo$dataset
     
@@ -313,236 +352,123 @@ controlPlusOne.batch.server <- function(id,fileInfo) {
     
     fileType <- fileInfo$type
     
-    ctInput <- controlPlusOne.batch.fileServer("ctFile")
+    selectedControlTreatment <- controlPlusOne.batch.controlTreatmentServer("controlTreatmentSelection",dataset)
     
-    selectedCellLinesAndSubgroups <- controlPlusOne.batch.cellLineServer("cellLineSelection", dataset)
+    selectedDose <- controlPlusOne.batch.doseServer("doseSelection", dataset,selectedControlTreatment)
     
-    selectedCellLine <- selectedCellLinesAndSubgroups$cellLines
+    selectedDrugToAdd <- controlPlusOne.batch.drugToAddServer("drugToAddSelection",dataset, selectedControlTreatment)
+    
+    selectedCellLinesAndSubgroups <- controlPlusOne.batch.cellLineServer("cellLineSelection",dataset)
+    
+    selectedCellLines <- selectedCellLinesAndSubgroups$cellLines
     
     selectedSubgroups <- selectedCellLinesAndSubgroups$subgroups
     
-    checkedParameters <- controlPlusOne.batch.parametersServer("parametersCheck_batch", fileType)
+    checkedParameters <- controlPlusOne.batch.parametersServer("parametersCheck", fileType)
     
-    clThreshold <- controlPlusOne.batch.cellLinesThresholdServer("cellLineThreshold")
+    nSim <- checkedParameters$nSim
     
-    nSim <- controlPlusOne.batch.nSimulationServer("n_simulation")
+    efficacyMetric <- controlPlusOne.batch.efficacyMetricServer("efficacyMetric", fileType)
     
-    efficacyMetric <- controlPlusOne.batch.efficacyMetricServer("efficacyMetric_batch", fileType)
+    result <- reactiveVal()
     
-    logText <- reactiveVal(NULL)
+    warningMessage <- reactiveVal()
     
-    tableResult <- reactiveVal(NULL)
-    
-    output$log <- renderText(logText())
-    
-    output$table_batch <- DT::renderDataTable({
-      if(!is.null(tableResult()))
-        tableResult()[, names(result()) != "Cell_Lines_Used"]
-      },options = list(scrollX = TRUE))
-    
-    output$downloadData <- downloadHandler(
-      filename = function() {
-        paste('data-', Sys.Date(), '.txt', sep='')
-      },
-      content = function(con) {
-        write_delim(tableResult(), con, delim = "\t")
-      }
-    )
-    
-    clThreshold <- controlPlusOne.batch.cellLinesThresholdServer("cellLineThreshold")
-    
-    observeEvent(input$button_batch, {
-      #check dataset
-      if(is.null(dataset())){
-        logText("Please Upload Your Data First!")
-        return()
-      }
-      #check control treatments input files
-      if(is.null(ctInput())){
-        logText("Please Upload Your Control Treatment Text File!")
-        return()
-      }
-      # retrieve data and write error message when filter the cell lines for each control treatment
-          ## Initialize some variables
-      all_cl <- unique(dataset()$Cell_Line)     #will be used to initialize "shared_cl" in each control treatment
-      logText("") # initialize log. This will empty all the log shown with previous table result
-      msg <- ""   # initialize error message. This is the main message of the log
-      drugList <- list()   # control treatment drugs list
-      doseList <- list()   # control treatment doses list
-      drug_to_add_arr <- rep("",nrow(ctInput()))    # drug to add vector
-      cl_num <- rep(0, nrow(ctInput()))    # shared cell line numbers vector
-      shared_cl <- list()    #   shared cell lines list
+    observeEvent(input$button, {
       
-          ##  begin data retrieve
-      for(i in 1:nrow(ctInput())) {
-        ### retrieve data from ctInput row
-        ###    1. control treatment drugs
-        drugList[[i]] <- strsplit(ctInput()$Control_Treatment[i], ",")[[1]]
-        ###    2. control treatment doses
-        doseList[[i]] <- strsplit(ctInput()$Doses[i], ",")[[1]]
-        
-        ###    3. drug to add
-        drug_to_add_arr[i] <- ctInput()$Drug_To_Add[i]
-        ### error handling of data retrieve
-        validate(
-          need(length(drugList[[i]])==length(doseList[[i]]), paste0("The number of drugs in control treatment doesn't match that of doses: Input Row ", i))
-        )
-        
-        ### update the shared cell lines iteratively and store the final result into the list
-        shared_cl[[i]] <- selectedCellLine()
-        for(j in 1:length(drugList[[i]])){
-          shared_cl[[i]] <- intersect(shared_cl[[i]], 
-                                  unique(dataset()$Cell_Line[ dataset()$Drug == drugList[[i]][j]
-                                                              & dataset()$Drug_Dose == doseList[[i]][j] ])
-                                      )
-
-        }
-        shared_cl[[i]] <- intersect(shared_cl[[i]],
-                               unique(dataset()$Cell_Line[ dataset()$Drug == ctInput()$Drug_To_Add[i] ]))
-        ###   count the number of shared cell lines
-        cl_num[i] <- length(shared_cl[[i]])
-        ###   generate extra error message
-        if(cl_num[i] < clThreshold()) {
-          msg <- paste0(msg, "Row ", i, ": shared cell lines are less than threshold\n")
-        }
-        else {
-          msg <- paste0(msg, "Row ", i, " used ", cl_num[i], " cell lines\n")
-        }
-      }
-          ## update log Text
-      logText(paste0("Warning:\n", msg))
+      validate(
+        need(!is.null(dataset()), "Please upload your data"),
+        need(!is.null(selectedControlTreatment()), "Please select control treatment"),
+        need(!is.null(selectedDrugToAdd()), "Please select Drug to Add"),
+        need(!is.null(selectedCellLines()), "Please select Cell lines"),
+        need(length(selectedDose()) == length(selectedControlTreatment()), "Please select doses")
+      )
       
-      ###  get usable rows index in original ctInput
-      usable_index <- which(cl_num >= 2)
       
-      # Now prepare prediction process
-      ###   whether orignal dataset contain some extra cols
+      
       if("seCol" %in% extraCol())
         eff_se_col = "Efficacy_SE"
       else
         eff_se_col = NULL
       
-          ## Localize reactive values in order to be used in definition of getRes
-      ###   parameters
-      isLowerEfficacy <- checkedParameters$isLowerEfficacy()
-      uncertainty <- checkedParameters$uncertainty()
-      comboscore <- checkedParameters$comboscore()
-      averageDuplicate <- checkedParameters$averageDuplicate()
-      ###   metric name
-      efficacy_metric <- efficacyMetric()
-      ###   dataset
-      data <- dataset()
-      ##   n_sim
-      n_sim <- nSim()
-      ###  now define getRes
-      getRes <- function(i) {
-        # prepare mono data of control treatment and of drug to add
-        control_data <- data[ data$Drug %in% drugList[[i]] & data$Cell_Line %in% shared_cl[[i]] ,]
-        for( j in 1:length(drugList[[i]]) ) {
-          control_data <- control_data[!(control_data$Drug == drugList[[i]][j] & control_data$Drug_Dose != doseList[[i]][j]),]
-        }
-
-        drug_to_add_data <- data[data$Drug == drug_to_add_arr[i] & data$Cell_Line %in% shared_cl[[i]],]
-        
-        monoData <- rbindlist(list(control_data, drug_to_add_data))
-        
-        IDAPredict.ControlPlusOne(
-          Monotherapy_Data = monoData,
-          Cell_Line_Name_Column = "Cell_Line",
-          Drug_Name_Column = "Drug",
-          Drug_Concentration_Column = "Drug_Dose",
-          Efficacy_Column = "Efficacy",
-          LowerEfficacyIsBetterDrugEffect = isLowerEfficacy,
-          Efficacy_Metric_Name = efficacy_metric,
-          Control_Treatment_Drugs = drugList[[i]],
-          Control_Treatment_Drug_Concentrations = doseList[[i]],
-          Drug_to_Add = drug_to_add_arr[i],
-          Calculate_Uncertainty = uncertainty,
-          Efficacy_SE_Column = eff_se_col,
-          n_Simulations = n_sim,
-          Calculate_IDAcomboscore_And_Hazard_Ratio = comboscore,
-          Average_Duplicate_Records = averageDuplicate
-        )
-      }
-      res <- NULL
-      if(length(usable_index) < 1){
-        res <- NULL
-      }
-      else if(length(usable_index) <= 30) {
-        withProgress(message = 'Computing...', value = 0, {
-          res_list <- list()
-          for(i in length(usable_index)) {
-            index <- usable_index[i]
-            res_list <- c(res_list, list(getRes(index)))
-            incProgress(1/length(usable_index))
-          }
-          res <- res_list %>%
-            lapply(function(x) {
-              cbind(Control_Treatment = x$Control_Treatment, 
-                    Drug_to_Add = x$Drug_to_Add,
-                    Number_of_Cell_Lines_Used = length(x$Cell_Lines_Used),
-                    Cell_Lines_Used = paste(x$Cell_Lines_Used, collapse = ", "),
-                    x[[1]])
-            }) %>%  rbindlist()
-        })
-      }
-      else{# launch parallel computing
-        progress = AsyncProgress$new(message="Computing...")
-        res_list <- list()
-        Runs = 4
-        for(i in 1:Runs) {
-          range <- floor(length(usable_index)/Runs)
-          test_seq <- ((i-1)*range+1):(i*range)
-          res_list[[i]] <- future({
-            subRes_list <- list()
-            for(j in test_seq){
-              index <- usable_index[j]
-              subRes_list <- c(subRes_list,list(getRes(index)))
-              progress$inc(1/length(usable_index))
+      warning_msg <- ""
+      res_list <- vector("list", length = length(selectedDrugToAdd()))
+      monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines(),]
+      withProgress(message = "Computing...", value = 0, {
+        for(i in seq_along(selectedDrugToAdd())) {
+          #get mono data
+          res_list[[i]] <- withCallingHandlers(
+            tryCatch(
+              expr = {
+                res <- IDAPredict.ControlPlusOne(
+                  Monotherapy_Data = monotherapy_data,
+                  Cell_Line_Name_Column = "Cell_Line",
+                  Drug_Name_Column = "Drug",
+                  Drug_Concentration_Column = "Drug_Dose",
+                  Efficacy_Column = "Efficacy",
+                  LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
+                  Efficacy_Metric_Name = efficacyMetric(),
+                  Control_Treatment_Drugs = selectedControlTreatment(),
+                  Control_Treatment_Drug_Concentrations = selectedDose(),
+                  Drug_to_Add = selectedDrugToAdd()[i],
+                  Calculate_Uncertainty = checkedParameters$uncertainty(),
+                  Efficacy_SE_Column = eff_se_col,
+                  n_Simulations = nSim(),
+                  Calculate_IDAcomboscore_And_Hazard_Ratio = checkedParameters$comboscore(),
+                  Average_Duplicate_Records = checkedParameters$averageDuplicate()
+                )
+                if(!is.data.frame(res[[1]])){
+                  NULL
+                } else{
+                  res <- cbind(Control_Treatment = res$Control_Treatment, 
+                               Drug_to_Add = res$Drug_to_Add,
+                               Number_of_Cell_Lines_Used = length(res$Cell_Lines_Used),
+                               Cell_Lines_Used = paste(res$Cell_Lines_Used, collapse = ", "),
+                               res[[1]])
+                  res
+                }
+              }),
+            warning = function(w) {
+              warning_msg <<- append(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+              invokeRestart("muffleWarning")
             }
-            subRes <- subRes_list %>% lapply(function(x) {
-              cbind(Control_Treatment = x$Control_Treatment, 
-                    Drug_to_Add = x$Drug_to_Add,
-                    Number_of_Cell_Lines_Used = length(x$Cell_Lines_Used),
-                    Cell_Lines_Used = paste(x$Cell_Lines_Used, collapse = ", "),
-                    x[[1]])
-            }) %>%  rbindlist()
-            return(subRes)
-          })
+          )
+          incProgress(1/length(selectedDrugToAdd()))
         }
-        
-        remainder <- future({
-          if(length(usable_index) %% Runs != 0){
-            range <- floor(length(usable_index)/Runs)
-            test_seq <- (Runs*range+1):length(usable_index)
-            subRes_list <- list()
-            for(j in test_seq){
-              index <- usable_index[j]
-              subRes_list <- c(subRes_list,list(getRes(index)))
-              progress$inc(1/length(usable_index))
-            }
-            subRes <- subRes_list %>% lapply(function(x) {
-              cbind(Control_Treatment = x$Control_Treatment, 
-                    Drug_to_Add = x$Drug_to_Add,
-                    Number_of_Cell_Lines_Used = length(x$Cell_Lines_Used),
-                    Cell_Lines_Used = paste(x$Cell_Lines_Used, collapse = ", "),
-                    x[[1]])
-            }) %>%  rbindlist()
-            return(subRes)
-          }else{
-            return(data.frame())
-          }
-        })
-        res <- promise_all(a = res_list[[1]], b = res_list[[2]], c = res_list[[3]], d = res_list[[4]], e = remainder) %...>%
-          with({
-            rbindlist(list(a,b,c,d,e))
-          })
-      }
-      tableResult(res)
+      })
+      if(nchar(warning_msg) == 0)
+        warning_msg <- "No warning messages"
+      warningMessage(warning_msg)
+      result(rbindlist(res_list))
+      
     })
+    
+    output$table <- DT::renderDataTable({
+      result()[, names(result()) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
+    },options = list(scrollX = TRUE))
+    
+    output$log <- renderText({
+        warningMessage()
+    })
+    
+    output$downloadData <- downloadHandler(
+      filename = function() {
+        paste('data-', Sys.Date(), '.txt', sep='')
+      },
+      content = function(file) {
+        write_delim(result(), file, delim = "\t")
+      }
+    )
+    
+    
+    output$downloadLog <- downloadHandler(
+      filename = function() {
+        paste('log-', Sys.Date(), '.txt', sep='')
+      },
+      content = function(file) {
+        write(warningMessage(), file)
+      }
+    )
+    
   })
 }
-
-
-
-

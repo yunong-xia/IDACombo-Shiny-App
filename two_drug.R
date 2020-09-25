@@ -8,9 +8,7 @@ twoDrugs.drugInput <- function(id) {
 }
 
 twoDrugs.drugServer <- function(id, dataset) { #dataset is a reactive value
-  stopifnot(is.reactive(dataset))
   moduleServer(id, function(input,output,session) {
-    
     observeEvent(dataset(),{
       drug_choices <- unique(dataset()$Drug)
       updateSelectInput(session,"drug1",label = "Drug 1", choices = drug_choices)
@@ -235,6 +233,8 @@ twoDrugs.parametersInput <- function(id) {
                          ),
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
              ),
+    conditionalPanel(condition = "input.uncertainty", ns = ns,
+                     numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
     checkboxInput(ns("comboscore"), "Calculate IDAComboscore And HazardRatios") %>%
       helper(type = "inline",
              title = "Calculate IDAComboscore And HazardRatios",
@@ -272,19 +272,8 @@ twoDrugs.parametersServer <- function(id, fileType) {
     list(isLowerEfficacy = reactive(input$isLowerEfficacy),
          uncertainty = reactive(input$uncertainty),
          comboscore = reactive(input$comboscore),
-         averageDuplicate = reactive(input$averageDuplicate))
-  })
-}
-
-
-twoDrugs.nSimulationInput <- function(id) {
-  ns <- NS(id)
-  numericInput(inputId = ns("nSim"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)
-}
-
-twoDrugs.nSimulationServer <- function(id) {
-  moduleServer(id, function(input,output,session){
-    reactive(input$nSim)
+         averageDuplicate = reactive(input$averageDuplicate),
+         nSim = reactive(input$nSimulation))
   })
 }
 
@@ -369,7 +358,7 @@ twoDrugs.server <- function(id, fileInfo) {
     
     checkedParameters <- twoDrugs.parametersServer("parametersCheck",fileType)
     
-    nSim <- twoDrugs.nSimulationServer("n_simulation")
+    nSim <- checkedParameters$nSim
     
     efficacyMetric <- twoDrugs.efficacyMetricServer("efficacyMetric", fileType)
     

@@ -187,6 +187,8 @@ testVsControl.batch.parametersInput <- function(id) {
              ),
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
+    conditionalPanel(condition = "input.uncertainty", ns = ns,
+                     numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
     checkboxInput(ns("hazardRatio"), "Calculate Hazard Ratios") %>%
       helper(type = "inline",
              title = "Calculate Hazard Ratios",
@@ -223,7 +225,8 @@ testVsControl.batch.parametersServer <- function(id, fileType) {
     list(isLowerEfficacy = reactive(input$isLowerEfficacy),
          uncertainty = reactive(input$uncertainty),
          hazardRatio = reactive(input$hazardRatio),
-         averageDuplicate = reactive(input$averageDuplicate))
+         averageDuplicate = reactive(input$averageDuplicate),
+         nSim = reactive(input$nSimulation))
   })
 }
 
@@ -324,7 +327,7 @@ testVsControl.batch.server <- function(id,fileInfo) {
     
     efficacyMetric <- testVsControl.batch.efficacyMetricServer("efficacyMetric_batch", fileType)
     
-    nSim <- testVsControl.batch.nSimulationServer("n_sim")
+    nSim <- checkedParameters$nSim
     
     logText <- reactiveVal(NULL)
     

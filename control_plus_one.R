@@ -237,6 +237,8 @@ controlPlusOne.parametersInput <- function(id) {
              ),
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
+    conditionalPanel(condition = "input.uncertainty", ns = ns,
+                     numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
     checkboxInput(ns("comboscore"), "Calculate IDAComboscore And HazardRatios") %>%
       helper(type = "inline",
              title = "Calculate IDAComboscore And HazardRatios",
@@ -273,7 +275,8 @@ controlPlusOne.parametersServer <- function(id, fileType) {
     list(isLowerEfficacy = reactive(input$isLowerEfficacy),
          uncertainty = reactive(input$uncertainty),
          comboscore = reactive(input$comboscore),
-         averageDuplicate = reactive(input$averageDuplicate))
+         averageDuplicate = reactive(input$averageDuplicate),
+         nSim = reactive(input$nSimulation))
   })
 }
 
@@ -362,7 +365,7 @@ controlPlusOne.server <- function(id, fileInfo) {
     
     checkedParameters <- controlPlusOne.parametersServer("parametersCheck", fileType)
     
-    nSim <- controlPlusOne.nSimulationServer("n_simulation")
+    nSim <- checkedParameters$nSim
     
     efficacyMetric <- controlPlusOne.efficacyMetricServer("efficacyMetric", fileType)
     
@@ -379,40 +382,13 @@ controlPlusOne.server <- function(id, fileInfo) {
         need(length(selectedDose()) == length(selectedControlTreatment()), "Please select doses")
       )
       
-      usable_shared_cl <- selectedCellLines()
-      
-      for(i in 1:length(selectedControlTreatment())) {
-        usable_shared_cl <- intersect(usable_shared_cl,
-                                      unique(dataset()$Cell_Line[dataset()$Drug == selectedControlTreatment()[i] & dataset()$Drug_Dose == selectedDose()])
-                                      )
-      }
-      
-      usable_shared_cl <- intersect(usable_shared_cl,
-                                    unique(dataset()$Cell_Line[dataset()$Drug == selectedDrugToAdd()])
-                                    )
-      
-      
-      # Initialize the control data.
-      controlData <- dataset() %>% 
-        filter(Drug %in% selectedControlTreatment(),
-               Cell_Line %in% usable_shared_cl)
-      # then filter the data one by one according to the drug dose 
-      for(i in 1:length(selectedControlTreatment())){
-        controlData <- controlData[!(controlData$Drug == selectedControlTreatment()[i] & controlData$Drug_Dose != selectedDose()[i]),]
-      }
-      drugToAddData <- dataset() %>%
-        filter(Drug == selectedDrugToAdd(),
-               Cell_Line %in% usable_shared_cl)
-      
-      monoData <- rbindlist(list(controlData,drugToAddData))
-      
       if("seCol" %in% extraCol())
         eff_se_col = "Efficacy_SE"
       else
         eff_se_col = NULL
       
       res_list <- IDAPredict.ControlPlusOne(
-        Monotherapy_Data = monoData,
+        Monotherapy_Data = dataset(),
         Cell_Line_Name_Column = "Cell_Line",
         Drug_Name_Column = "Drug",
         Drug_Concentration_Column = "Drug_Dose",
