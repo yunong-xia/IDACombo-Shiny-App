@@ -15,10 +15,7 @@ datasetInput <- function(id) {
                            
                            downloadButton(ns('sampleFile'), 'Download Sample Input File'),
                            
-                           checkboxGroupInput(ns("extraCol"), "Does the file contain columns:",
-                                              c("Efficacy Standard Error" = "seCol",
-                                                "Cancer cell line subgroups" = "subCol")
-                           ),
+
                            
                            fileInput(ns("dataset"), "Upload your data set",
                                      multiple = TRUE,
@@ -72,19 +69,26 @@ datasetServer <- function(id) {
       inFile <- input$dataset
       if(is.null(inFile))
         return(NULL)
-      content <- read.xlsx(input$dataset$datapath)
+      show_modal_spinner(
+        spin = "self-building-square",
+        color = "firebrick",
+        text = "Please wait..."
+      )
+      content <- read.xlsx(input$dataset$datapath, colNames = T)
+      remove_modal_spinner()
       headers <- names(content)
+      extraCol <- NULL
       fixedHeaderNames <- c("Cell_Line", "Drug", "Drug_Dose", "Efficacy")
-      if("seCol" %in% input$extraCol)
-        fixedHeaderNames <- c(fixedHeaderNames, "Efficacy_SE")
-      if("subCol" %in% input$extraCol)
-        fixedHeaderNames <- c(fixedHeaderNames, "Cell_Line_Subgroup")
+      if("Efficacy_SE" %in% headers)
+        extraCol <- c(extraCol, "seCol")
+      if("Cell_Line_Subgroup" %in% headers)
+        extraCol <- c(extraCol, "subCol")
       missedCol <- setdiff(fixedHeaderNames, headers)
       validate(
-        need(length(missedCol) == 0, paste0("Warning: Please modify the column names to : ", missedCol))
+        need(length(missedCol) == 0, paste0("Warning: Missing required column(s) : ", paste(missedCol, collapse = " ")))
       )
       fileInfo$dataset <- content
-      fileInfo$extraCol <- input$extraCol
+      fileInfo$extraCol <- extraCol
       fileInfo$type <- "custom"
     })
     
