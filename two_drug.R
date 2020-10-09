@@ -374,11 +374,9 @@ twoDrugs.server <- function(id, fileInfo) {
 
       select1<-filter(dataset(),
                       Drug == selectedDrugs$d1(),
-                      Cell_Line %in% selectedCellLines(),
                       Drug_Dose %in% selectedDose$dose1())
       select2<-filter(dataset(),
                       Drug == selectedDrugs$d2(),
-                      Cell_Line %in% selectedCellLines(),
                       Drug_Dose %in% selectedDose$dose2())
 
 

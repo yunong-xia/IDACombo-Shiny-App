@@ -13,9 +13,6 @@ library(shinycssloaders)
 library(shinyWidgets)
 library(rgl)
 library(data.table)
-library(future)
-library(promises)
-library(ipc)
 library(car)
 library(shinyjs)
 library(shinybusy)
@@ -25,7 +22,6 @@ options(shiny.maxRequestSize = 300*1024^2)
 options(stringsAsFactors = FALSE)
 
 par3d(cex = 1)
-plan(multisession)
 
 
 #IDACombo Functionalities are implemented in each corresponding R file.

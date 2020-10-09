@@ -230,16 +230,6 @@ testVsControl.batch.parametersServer <- function(id, fileType) {
   })
 }
 
-testVsControl.batch.nSimulationInput <- function(id) {
-  ns <- NS(id)
-  numericInput(inputId = ns("nSim"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)
-}
-
-testVsControl.batch.nSimulationServer <- function(id) {
-  moduleServer(id, function(input,output,session){
-    reactive(input$nSim)
-  })
-}
 
 #efficacy metric input
 testVsControl.batch.efficacyMetricInput <- function(id) {
@@ -296,13 +286,15 @@ testVsControl.batch.ui <- function(id) {
         testVsControl.batch.parametersInput(ns("parametersCheck_batch")),
         testVsControl.batch.efficacyMetricInput(ns("efficacyMetric_batch")),
         tags$hr(),
-        actionButton(ns("button_batch"), "RUN")
+        actionButton(ns("button"), "RUN")
     ),
     box(width = NULL, status = "primary", solidHeader = TRUE, title = "Result",
-        downloadButton(ns('downloadData_batch'), 'Download DataTable'),
-        wellPanel(verbatimTextOutput(ns("log"))),
-        conditionalPanel(condition = "input.button_batch",ns = ns, withSpinner(DT::dataTableOutput(ns("table_batch")))  
-        ))
+        downloadButton(ns('downloadData'), 'Download DataTable'),
+        downloadButton(ns('downloadLog'), 'Download Log'),
+        conditionalPanel(condition = "input.button",ns = ns, tabsetPanel(type = "tabs",
+                                                                               tabPanel("Table", withSpinner(DT::dataTableOutput(ns("table")))),
+                                                                               tabPanel('Log', withSpinner(verbatimTextOutput(ns('log'))))))
+    )
   )
 }
 
@@ -328,14 +320,15 @@ testVsControl.batch.server <- function(id,fileInfo) {
     
     nSim <- checkedParameters$nSim
     
-    logText <- reactiveVal(NULL)
+    warningMessage <- reactiveVal(NULL)
     
     tableResult <- reactiveVal(NULL)
     
-    output$log <- renderText(logText())
+    output$log <- renderText(warningMessage())
     
-    output$table_batch <- DT::renderDataTable(tableResult(),
-                                              options = list(scrollX = TRUE))
+    output$table <- DT::renderDataTable({
+      tableResult()[, names(tableResult()) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
+    },options = list(scrollX = TRUE))
     
     output$downloadData <- downloadHandler(
       filename = function() {
@@ -346,32 +339,25 @@ testVsControl.batch.server <- function(id,fileInfo) {
       }
     )
     
+    output$downloadLog <- downloadHandler(
+      filename = function() {
+        paste('data-', Sys.Date(), '.txt', sep='')
+      },
+      content = function(con) {
+        write_delim(warningMessage(), con, delim = "\t")
+      }
+    )
+    
     clThreshold <- testVsControl.batch.cellLinesThresholdServer("cellLineThreshold")
     
-    observeEvent(input$button_batch, {
-      #check dataset
-      if(is.null(dataset())){
-        logText("Please Upload Your Data First!\n")
-        return()
-      }
-      #check control treatments input files
-      if(is.null(batchInput())){
-        logText("Please Upload Your Control Treatment Text File!")
-        return()
-      }
+    observeEvent(input$button, {
+     
       
       validate(
         need(!is.null(dataset()), "Please upload your dataset"),
         need(!is.null(batchInput()), "Please upload your input file"),
         need(!is.null(selectedCellLine()), "Please select cell lines")
       )
-      
-      # retrieve info in ctInput
-      ## null file error handling
-      if(nrow(batchInput()) == 0){
-        logText("No data in your input file\n")
-        return()
-      }
       
       controlTreatmentList <- list()
       testTreatmentList <- list()
@@ -386,162 +372,73 @@ testVsControl.batch.server <- function(id,fileInfo) {
           need(length(testDrugs) == length(testDoses), "Length of test treatment drugs and doses does not match")
         )
         controlTreatmentList[[i]] <- data.frame(Drug = ctDrugs, 
-                                           Dose = ctDoses)
+                                           Dose = as.numeric(ctDoses),
+                                           stringsAsFactors = F)
         testTreatmentList[[i]] <- data.frame(Drug = testDrugs, 
-                                        Dose = testDoses)
+                                        Dose = as.numeric(testDoses),
+                                        stringsAsFactors = F)
       }
       
-      sharedCellLineList <- list()
-      cl_num <- c()
-      msg <- ""
-      #iterative way to find shared cell lines among each test-vs-control pair.
-      for(i in 1:nrow(batchInput())){
-        sharedCellLineList[[i]] <- selectedCellLine()
-        for(j in 1:nrow(controlTreatmentList[[i]])) {
-          sharedCellLineList[[i]] <- intersect(sharedCellLineList[[i]], 
-                                      unique(dataset()$Cell_Line[ dataset()$Drug == controlTreatmentList[[i]]$Drug[j] & dataset()$Drug_Dose == controlTreatmentList[[i]]$Dose[j] ]))
-        }
-        for(j in 1:nrow(testTreatmentList[[i]])) {
-          sharedCellLineList[[i]] <- intersect(sharedCellLineList[[i]], 
-                                               unique(dataset()$Cell_Line[ dataset()$Drug == testTreatmentList[[i]]$Drug[j] & dataset()$Drug_Dose == testTreatmentList[[i]]$Dose[j] ]))
-        }
-        cl_num[i] <- length(sharedCellLineList[[i]])
-        if(cl_num[i] < 2)
-          msg <- paste0(msg, "Row ", i, " doesn't have enough shared cell lines (>=2)\n")
-        else{
-          msg <- paste0(msg, "Row ", i, " used ", cl_num[i], " cell lines\n")
-        }
-      }
-      
-      logText(paste0("Warning:\n", msg))
-      
-      usable_index <- which(cl_num >= 2)
       
       if("seCol" %in% extraCol())
         eff_se_col = "Efficacy_SE"
       else
         eff_se_col = NULL
-
-      isLowerEfficacy <- checkedParameters$isLowerEfficacy()
-      uncertainty <- checkedParameters$uncertainty()
-      hazardRatio <- checkedParameters$hazardRatio()
-      averageDuplicate <- checkedParameters$averageDuplicate()
-      efficacy_metric <- efficacyMetric()
-      n_sim <- nSim()
-      data <- dataset()
-      getRes <- function(i) {
-        controlData <- apply(controlTreatmentList[[i]], 1,function(row){
-          data[ data$Drug == row[1] & data$Drug_Dose == row[2],]
-        }) %>%
-          rbindlist()
-        
-        testData <- apply(testTreatmentList[[i]], 1,function(row){
-          data[ data$Drug == row[1] & data$Drug_Dose == row[2],]
-        }) %>%
-          rbindlist()
-        
-        monoData <- rbindlist(list(controlData, testData))
-        
-        ida_res <- IDAPredict.TestvsControl(
-          Monotherapy_Data = monoData,
-          Cell_Line_Name_Column = "Cell_Line",
-          Drug_Name_Column = "Drug",
-          Drug_Concentration_Column = "Drug_Dose",
-          Efficacy_Column = "Efficacy",
-          LowerEfficacyIsBetterDrugEffect = isLowerEfficacy,
-          Efficacy_Metric_Name = efficacy_metric,
-          Control_Treatment_Drugs = controlTreatmentList[[i]]$Drug,
-          Control_Treatment_Drug_Concentrations = controlTreatmentList[[i]]$Dose,
-          Test_Treatment_Drugs = testTreatmentList[[i]]$Drug,
-          Test_Treatment_Drug_Concentrations = testTreatmentList[[i]]$Dose,
-          Calculate_Uncertainty = uncertainty,
-          Efficacy_SE_Column = eff_se_col,
-          n_Simulations = n_sim,
-          Calculate_Hazard_Ratio = hazardRatio,
-          Average_Duplicate_Records = averageDuplicate
-        )
-      }
       
-      res <- NULL
-      if(length(usable_index) < 1){
-        res <- NULL
-      }
-      else if(length(usable_index) <= 30) {
-        withProgress(message = 'Computing...', value = 0, {
-          res_list <- list()
-          for(i in 1:length(usable_index)) {
-            index <- usable_index[i]
-            res_list <- c(res_list, list(getRes(index)))
-            incProgress(1/length(usable_index))
-          }
-          res <- res_list %>%
-            lapply(function(x) {
-              cbind(Control_Treatment_Drugs = paste(x$Control_Treatment$Control_Treatment_Drugs, collapse = ", "), 
-                    Control_Treatment_Drug_Concentration = paste(x$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
-                    Test_Treatment_Drugs = paste(x$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
-                    Test_Treatment_Drugs = paste(x$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
-                    Cell_Lines_Used = paste(x$Cell_Lines_Used, collapse = ", "),
-                    x[[1]])
-            }) %>%  rbindlist()
-        })
-      }
-      else{#parallel computing
-        progress = AsyncProgress$new(message="Computing...")
-        res_list <- list()
-        Runs = 4
-        for(i in 1:Runs) {
-          range <- floor(length(usable_index)/Runs)
-          test_seq <- ((i-1)*range+1):(i*range)
-          res_list[[i]] <- future({
-            subRes_list <- list()
-            for(j in test_seq){
-              index <- usable_index[j]
-              subRes_list <- c(subRes_list,list(getRes(index)))
-              progress$inc(1/length(usable_index))
+      warning_msg <- ""
+      res_list <- vector("list", length = length(controlTreatmentList))
+      monotherapy_data <- dataset()
+      withProgress(message = "Computing...", value = 0, {
+        for(i in 1:length(controlTreatmentList)) {
+          #get mono data
+          res_list[[i]] <- withCallingHandlers(
+            tryCatch(
+              expr = {
+                res <- IDAPredict.TestvsControl(
+                  Monotherapy_Data = monotherapy_data,
+                  Cell_Line_Name_Column = "Cell_Line",
+                  Drug_Name_Column = "Drug",
+                  Drug_Concentration_Column = "Drug_Dose",
+                  Efficacy_Column = "Efficacy",
+                  LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
+                  Efficacy_Metric_Name = efficacyMetric(),
+                  Control_Treatment_Drugs = controlTreatmentList[[i]]$Drug,
+                  Control_Treatment_Drug_Concentrations = controlTreatmentList[[i]]$Dose,
+                  Test_Treatment_Drugs = testTreatmentList[[i]]$Drug,
+                  Test_Treatment_Drug_Concentrations = testTreatmentList[[i]]$Dose,
+                  Calculate_Uncertainty = checkedParameters$uncertainty(),
+                  Efficacy_SE_Column = eff_se_col,
+                  n_Simulations = nSim(),
+                  Calculate_Hazard_Ratio = checkedParameters$hazardRatio(),
+                  Average_Duplicate_Records = checkedParameters$averageDuplicate()
+                )
+                cat(str(res))
+                if(!is.data.frame(res[[1]])){
+                  NULL
+                } else{
+                  res <- cbind(Control_Treatment_Drugs = paste(res$Control_Treatment$Control_Treatment_Drugs, collapse = ", "), 
+                               Control_Treatment_Drug_Concentration = paste(res$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
+                               Test_Treatment_Drugs = paste(res$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
+                               Test_Treatment_Drugs_Concentrations = paste(res$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
+                               Number_of_Cell_Lines_Used = length(res$Cell_Lines_Used),
+                               Cell_Lines_Used = paste(res$Cell_Lines_Used, collapse = ", "),
+                               res[[1]])
+                  res
+                }
+              }),
+            warning = function(w) {
+              warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+              invokeRestart("muffleWarning")
             }
-            subRes <- subRes_list %>% lapply(function(x) {
-              cbind(Control_Treatment_Drugs = paste(x$Control_Treatment$Control_Treatment_Drugs, collapse = ", "), 
-                    Control_Treatment_Drug_Concentration = paste(x$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
-                    Test_Treatment_Drugs = paste(x$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
-                    Test_Treatment_Drugs = paste(x$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
-                    Cell_Lines_Used = paste(x$Cell_Lines_Used, collapse = ", "),
-                    x[[1]])
-            }) %>%  rbindlist()
-            return(subRes)
-          })
+          )
+          incProgress(1/nrow(pairs))
         }
-        
-        remainder <- future({
-          if(length(usable_index) %% Runs != 0){
-            range <- floor(length(usable_index)/Runs)
-            test_seq <- (Runs*range+1):length(usable_index)
-            subRes_list <- list()
-            for(j in test_seq){
-              index <- usable_index[j]
-              subRes_list <- c(subRes_list,list(getRes(index)))
-              progress$inc(1/length(usable_index))
-            }
-            subRes <- subRes_list %>% lapply(function(x) {
-              cbind(Control_Treatment_Drugs = paste(x$Control_Treatment$Control_Treatment_Drugs, collapse = ", "), 
-                    Control_Treatment_Drug_Concentration = paste(x$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
-                    Test_Treatment_Drugs = paste(x$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
-                    Test_Treatment_Drugs = paste(x$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
-                    Cell_Lines_Used = paste(x$Cell_Lines_Used, collapse = ", "),
-                    x[[1]])
-            }) %>%  rbindlist()
-            return(subRes)
-          }else{
-            return(data.frame())
-          }
-        })
-        res <- promise_all(a = res_list[[1]], b = res_list[[2]], c = res_list[[3]], d = res_list[[4]], e = remainder) %...>%
-          with({
-            rbindlist(list(a,b,c,d,e))
-          })
-      }
+      })
+      if(nchar(warning_msg) == 0)
+        warning_msg <- "No warning messages"
+      warningMessage(warning_msg)
       
-      
-      tableResult(res)
+      tableResult(rbindlist(res_list))
     })
   })
 }

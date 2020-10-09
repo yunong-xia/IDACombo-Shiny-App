@@ -289,6 +289,11 @@ twoDrugs.batch.server <- function(id, fileInfo) {
       }) %>%
         rbindlist()
       
+      if("seCol" %in% extraCol())
+        eff_se_col = "Efficacy_SE"
+      else
+        eff_se_col = NULL
+      
       warning_msg <- ""
       res_list <- vector("list", length = length(pairs))
       monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines(),]
@@ -327,7 +332,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
                 }
               }),
             warning = function(w) {
-              warning_msg <<- append(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+              warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
               invokeRestart("muffleWarning")
             }
           )

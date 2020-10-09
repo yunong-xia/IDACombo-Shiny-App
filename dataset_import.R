@@ -13,7 +13,7 @@ datasetInput <- function(id) {
                            h6("Efficacy_SE : Efficacy standard errors (if contain)"),
                            h6("Cell_Line_Subgroup : subgroups of cancer cell lines (if contain)"),
                            
-                           downloadButton(ns('sampleFil'), 'Download Sample Input File'),
+                           downloadButton(ns('sampleFile'), 'Download Sample Input File'),
                            
                            checkboxGroupInput(ns("extraCol"), "Does the file contain columns:",
                                               c("Efficacy Standard Error" = "seCol",
@@ -30,6 +30,8 @@ datasetInput <- function(id) {
                            selectInput(ns("providedDataSet"), "Choose a preprovided dataset:",
                                        c("GDSC","CTRPv2")),
                            actionButton(ns("button"),"Load"),
+                           hr(),
+                           h5("You can download the preprovided dataset chosen in the above menu."),
                            downloadButton(ns("download"), "Download Dataset")
                            )
                   )
@@ -70,7 +72,7 @@ datasetServer <- function(id) {
       inFile <- input$dataset
       if(is.null(inFile))
         return(NULL)
-      content <- read.delim(input$dataset$datapath)
+      content <- read.xlsx(input$dataset$datapath)
       headers <- names(content)
       fixedHeaderNames <- c("Cell_Line", "Drug", "Drug_Dose", "Efficacy")
       if("seCol" %in% input$extraCol)
@@ -101,8 +103,15 @@ datasetServer <- function(id) {
         "Sample-Input.xlsx"
       },
       content = function(file) {
-        header <- c("Cell_Line", "Drug", "Drug_Dose", "Efficacy","Efficacy_SE", "Cell_Line_Subgroup")
-        write.xlsx(header, con, delim = "\t")
+        df <- data.frame(
+          Drug = paste0("drug",c(1,2,3)),
+          Drug_Dose = runif(3,0,2),
+          Cell_Line = paste0("cell_line",c(1,2,3)),
+          Efficacy = runif(3,0,1),
+          Efficacy_SE = runif(3,0,0.1),
+          Cell_Line_Subgroup = paste0("group",c("A","A","B"))
+        )
+        write.xlsx(df, file)
       }
     )
     

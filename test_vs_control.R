@@ -260,12 +260,12 @@ testVsControl.parametersInput <- function(id) {
       ),
     conditionalPanel(condition = "input.uncertainty", ns = ns,
                      numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
-    checkboxInput(ns("comboscore"), "Calculate IDAComboscore And HazardRatios") %>%
+    checkboxInput(ns("hazardRatio"), "Calculate Hazard Ratios") %>%
       helper(type = "inline",
              title = "Calculate IDAComboscore And HazardRatios",
              icon = "question-circle", colour = NULL,
              content = c(
-               "<p style = 'text-indent:40px'>whether or not IDA-Comboscores and Hazard Ratios (HRs) should be calculated between monotherapies and the drug combination.</p>"
+               "<p style = 'text-indent:40px'>whether or not Hazard Ratios (HRs) should be calculated between monotherapies and the drug combination.</p>"
              ),
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
@@ -295,22 +295,13 @@ testVsControl.parametersServer <- function(id, fileType) {
     
     list(isLowerEfficacy = reactive(input$isLowerEfficacy),
          uncertainty = reactive(input$uncertainty),
-         comboscore = reactive(input$comboscore),
+         hazardRatio = reactive(input$hazardRatio),
          averageDuplicate = reactive(input$averageDuplicate),
          nSim = reactive(input$nSimulation))
   })
 }
 
-testVsControl.nSimulationInput <- function(id) {
-  ns <- NS(id)
-  numericInput(inputId = ns("nSim"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)
-}
 
-testVsControl.nSimulationServer <- function(id) {
-  moduleServer(id, function(input,output,session){
-    reactive(input$nSim)
-  })
-}
 
 
 
@@ -403,43 +394,16 @@ testVsControl.server <- function(id, fileInfo) {
         need(length(selectedTestDoses()) == length(selectedTestDrugs()), "Please select test treatment doses")
       )
       
-      usable_shared_cl <- selectedCellLines()
-      for(i in 1:length(selectedControlDrugs())) {
-        usable_shared_cl <- intersect(usable_shared_cl, 
-                               unique(dataset()$Cell_Line[ dataset()$Drug == selectedControlDrugs()[i] & dataset()$Drug_Dose == selectedControlDoses()[i] ]))
-      }
-      for(i in 1:length(selectedTestDrugs())) {
-        usable_shared_cl <- intersect(usable_shared_cl, 
-                               unique(dataset()$Cell_Line[ dataset()$Drug == selectedTestDrugs()[i] & dataset()$Drug_Dose == selectedTestDoses()[i] ]))
-      }
-      
-      validate(
-        need(usable_shared_cl >= 2, "Usable shared cell lines among control and test treatments are less than 2")
-      )
-      
-      controlData <- dataset() %>% 
-        filter(Drug %in% selectedControlDrugs(),
-               Cell_Line %in% usable_shared_cl)
-      for(i in 1:length(selectedControlDrugs())){
-        controlData <- controlData[!(controlData$Drug == selectedControlDrugs()[i] & controlData$Drug_Dose != selectedControlDoses()[i]),]
-      }
-      
-      testData <- dataset() %>% 
-        filter(Drug %in% selectedTestDrugs(),
-               Cell_Line %in% usable_shared_cl)
-      for(i in 1:length(selectedTestDrugs())){
-        testData <- testData[!(testData$Drug == selectedTestDrugs()[i] & testData$Drug_Dose != selectedTestDoses()[i]),]
-      }
       
       
-      monoData <- rbindlist(list(controlData,testData))
+      monotherapy_data <- dataset()
       if("seCol" %in% extraCol())
         eff_se_col = "Efficacy_SE"
       else
         eff_se_col = NULL
       
       res_list <- IDAPredict.TestvsControl(
-        Monotherapy_Data = monoData,
+        Monotherapy_Data = monotherapy_data,
         Cell_Line_Name_Column = "Cell_Line",
         Drug_Name_Column = "Drug",
         Drug_Concentration_Column = "Drug_Dose",
@@ -453,14 +417,14 @@ testVsControl.server <- function(id, fileInfo) {
         Calculate_Uncertainty = checkedParameters$uncertainty(),
         Efficacy_SE_Column = eff_se_col,
         n_Simulations = nSim(),
-        Calculate_Hazard_Ratio = checkedParameters$comboscore(),
+        Calculate_Hazard_Ratio = checkedParameters$hazardRatio(),
         Average_Duplicate_Records = checkedParameters$averageDuplicate()
       )
       
       res <- cbind(Control_Treatment_Drugs = paste(res_list$Control_Treatment$Control_Treatment_Drugs, collapse = ", "), 
                    Control_Treatment_Drug_Concentration = paste(res_list$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
                    Test_Treatment_Drugs = paste(res_list$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
-                   Test_Treatment_Drugs = paste(res_list$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
+                   Test_Treatment_Drugs_Concentrations = paste(res_list$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
                    Number_of_Cell_Lines_Used = length(res_list$Cell_Lines_Used),
                    Cell_Lines_Used = paste(res_list$Cell_Lines_Used, collapse = ", "),
                    res_list[[1]])

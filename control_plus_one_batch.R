@@ -279,18 +279,6 @@ controlPlusOne.batch.parametersServer <- function(id, fileType) {
   })
 }
 
-
-controlPlusOne.batch.nSimulationInput <- function(id) {
-  ns <- NS(id)
-  numericInput(inputId = ns("nSim"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)
-}
-
-controlPlusOne.batch.nSimulationServer <- function(id) {
-  moduleServer(id, function(input,output,session){
-    reactive(input$nSim)
-  })
-}
-
 #efficacy metric input
 controlPlusOne.batch.efficacyMetricInput <- function(id) {
   ns <- NS(id)
@@ -428,7 +416,7 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
                 }
               }),
             warning = function(w) {
-              warning_msg <<- append(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+              warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
               invokeRestart("muffleWarning")
             }
           )

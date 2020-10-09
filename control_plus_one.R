@@ -281,16 +281,7 @@ controlPlusOne.parametersServer <- function(id, fileType) {
 }
 
 
-controlPlusOne.nSimulationInput <- function(id) {
-  ns <- NS(id)
-  numericInput(inputId = ns("nSim"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)
-}
 
-controlPlusOne.nSimulationServer <- function(id) {
-  moduleServer(id, function(input,output,session){
-    reactive(input$nSim)
-  })
-}
 
 #efficacy metric input
 controlPlusOne.efficacyMetricInput <- function(id) {
