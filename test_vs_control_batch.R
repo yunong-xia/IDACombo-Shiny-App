@@ -1,19 +1,21 @@
 testVsControl.batch.fileInput <- function(id) {
   ns <- NS(id)
   fileInput(ns("controlTreatmentFile"), "Upload your input control treatment files",
-            accept = c("text/csv",
-                       "text/comma-separated-values,text/plain",
-                       ".csv")
+    accept = c(
+      "text/csv",
+      "text/comma-separated-values,text/plain",
+      ".csv"
+    )
   )
 }
 
 testVsControl.batch.fileServer <- function(id) {
-  moduleServer(id, function(input,output,session) {
-    
+  moduleServer(id, function(input, output, session) {
     fileContent <- reactive({
       inFile <- input$controlTreatmentFile
-      if(is.null(inFile))
+      if (is.null(inFile)) {
         return(NULL)
+      }
       content <- read.delim(input$controlTreatmentFile$datapath)
       headers <- names(content)
       fixedHeaderNames <- c("Control_Treatment_Drugs", "Control_Treatment_Doses", "Test_Treatment_Drugs", "Test_Treatment_Doses")
@@ -23,7 +25,7 @@ testVsControl.batch.fileServer <- function(id) {
       )
       content
     })
-    
+
     fileContent
   })
 }
@@ -31,136 +33,167 @@ testVsControl.batch.fileServer <- function(id) {
 testVsControl.batch.cellLineInput <- function(id) {
   ns <- NS(id)
   tagList(
-    pickerInput(ns("subgroups"),"Select Cell Lines By Subgroups",
-                choices = NULL,
-                options = list(`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
-                multiple = T),
-    actionButton(ns("selectAllSubgroups"),"Select All Subgroups"),
-    actionButton(ns("deselectAllSubgroups"),"Deselect All Subgroups"),
-    pickerInput(ns("cell_lines"),"Cell-Line available for both drugs (Multiple)",
-                choices = list(
-                  `Cancer Cell Lines` = NULL),
-                options = list(`actions-box` = TRUE,`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE,
-                               `selected-text-format`= "count",
-                               `count-selected-text` = "{0} models choosed (on a total of {1})"),
-                multiple = T)
+    pickerInput(ns("subgroups"), "Select Cell Lines By Subgroups",
+      choices = NULL,
+      options = list(`liveSearchStyle` = "startsWith", `liveSearch` = TRUE),
+      multiple = T
+    ),
+    actionButton(ns("selectAllSubgroups"), "Select All Subgroups"),
+    actionButton(ns("deselectAllSubgroups"), "Deselect All Subgroups"),
+    pickerInput(ns("cell_lines"), "Cell-Line available for both drugs (Multiple)",
+      choices = list(
+        `Cancer Cell Lines` = NULL
+      ),
+      options = list(
+        `actions-box` = TRUE, `liveSearchStyle` = "startsWith", `liveSearch` = TRUE,
+        `selected-text-format` = "count",
+        `count-selected-text` = "{0} models choosed (on a total of {1})"
+      ),
+      multiple = T
+    )
   )
 }
 
 testVsControl.batch.cellLineServer <- function(id, dataset) {
-  moduleServer(id, function(input,output,session) {
+  moduleServer(id, function(input, output, session) {
     cl_sg_set <- reactive(
-      if(!is.null(dataset()))
-        distinct(dataset()[, c("Cell_Line","Cell_Line_Subgroup")])
-      else
+      if (!is.null(dataset())) {
+        distinct(dataset()[, c("Cell_Line", "Cell_Line_Subgroup")])
+      } else {
         NULL
+      }
     )
-    
+
     cell_line_choices <- reactive(
       unique(cl_sg_set()$Cell_Line)
     )
-    
+
     subgroups_choices <- reactive(
       unique(cl_sg_set()$Cell_Line_Subgroup)
     )
-    
+
     observeEvent(c(dataset()), {
-      updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
-                        choices = cell_line_choices())
-      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                        selected = NULL,
-                        choices = c("Custom",subgroups_choices()))
+      updatePickerInput(session,
+        inputId = "cell_lines", label = "Select Cell Lines",
+        choices = cell_line_choices()
+      )
+      updatePickerInput(session,
+        inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+        selected = NULL,
+        choices = c("Custom", subgroups_choices())
+      )
     })
-    
+
     prev_selected_cell_lines <- reactiveVal(value = NULL)
     prev_selected_subgroups <- reactiveVal(value = NULL)
-    
-    observeEvent(input$subgroups, {
-      
-      if("Custom" %in% prev_selected_subgroups()) { ## Previously selected "Custom"
-        if("Custom" %in% input$subgroups && length(input$subgroups)>1) { ## now select other subgroups. 
-          new_subgroups <- setdiff(input$subgroups , "Custom")
-          new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
-          prev_selected_cell_lines(new_cell_lines)
-          prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
-                            selected = new_cell_lines,
-                            choices = cell_line_choices())
-          updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                            selected = new_subgroups,
-                            choices = c("Custom",subgroups_choices()))
+
+    observeEvent(input$subgroups,
+      {
+        if ("Custom" %in% prev_selected_subgroups()) { ## Previously selected "Custom"
+          if ("Custom" %in% input$subgroups && length(input$subgroups) > 1) { ## now select other subgroups.
+            new_subgroups <- setdiff(input$subgroups, "Custom")
+            new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
+            prev_selected_cell_lines(new_cell_lines)
+            prev_selected_subgroups(new_subgroups)
+            updatePickerInput(session,
+              inputId = "cell_lines", label = "Select Cell Lines",
+              selected = new_cell_lines,
+              choices = cell_line_choices()
+            )
+            updatePickerInput(session,
+              inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+              selected = new_subgroups,
+              choices = c("Custom", subgroups_choices())
+            )
+          }
+          else if (is.null(input$subgroups)) { # when users deselect "Custom"
+            prev_selected_cell_lines(NULL)
+            updatePickerInput(session,
+              inputId = "cell_lines", label = "Select Cell Lines",
+              selected = NULL,
+              choices = cell_line_choices()
+            )
+          }
+          else {
+            # do nothing
+          }
         }
-        else if(is.null(input$subgroups)){  # when users deselect "Custom"
-          prev_selected_cell_lines(NULL)
-          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
-                            selected = NULL,
-                            choices = cell_line_choices())
+        else { ## Previously didn't select "Custom"
+          if ("Custom" %in% input$subgroups) { ## newly select "Custom"
+            prev_selected_subgroups("Custom")
+            updatePickerInput(session,
+              inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+              selected = "Custom",
+              choices = c("Custom", subgroups_choices())
+            )
+          }
+          else { # just select other subgroups
+            new_subgroups <- input$subgroups
+            new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
+            prev_selected_cell_lines(new_cell_lines)
+            prev_selected_subgroups(new_subgroups)
+            updatePickerInput(session,
+              inputId = "cell_lines", label = "Select Cell Lines",
+              selected = new_cell_lines,
+              choices = cell_line_choices()
+            )
+            updatePickerInput(session,
+              inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+              selected = new_subgroups,
+              choices = c("Custom", subgroups_choices())
+            )
+          }
         }
-        else {
-          #do nothing
-        }
-      }
-      else { ## Previously didn't select "Custom"
-        if("Custom" %in% input$subgroups) {  ## newly select "Custom"
-          prev_selected_subgroups("Custom")
-          updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                            selected = "Custom",
-                            choices = c("Custom",subgroups_choices()))
-        }
-        else { # just select other subgroups
-          new_subgroups <- input$subgroups
-          new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
-          prev_selected_cell_lines(new_cell_lines)
-          prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
-                            selected = new_cell_lines,
-                            choices = cell_line_choices())
-          updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                            selected = new_subgroups,
-                            choices = c("Custom",subgroups_choices()))
-        }
-      }
-    }, ignoreNULL = F)
-    
+      },
+      ignoreNULL = F
+    )
+
     observeEvent(input$selectAllSubgroups, {
       prev_selected_subgroups(subgroups_choices())
-      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                        selected = subgroups_choices(),
-                        choices = c("Custom",subgroups_choices()))
+      updatePickerInput(session,
+        inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+        selected = subgroups_choices(),
+        choices = c("Custom", subgroups_choices())
+      )
     })
-    
+
     observeEvent(input$deselectAllSubgroups, {
       prev_selected_subgroups(NULL)
-      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                        selected = NULL,
-                        choices = c("Custom",subgroups_choices()))
+      updatePickerInput(session,
+        inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+        selected = NULL,
+        choices = c("Custom", subgroups_choices())
+      )
     })
-    
-    
-    observeEvent(input$cell_lines, {
-      
-      if("Custom" %in% input$subgroups){
-        prev_selected_cell_lines(input$cell_lines)
-      }
-      else { 
-        # check whether the selected cell line match those subgroups.
-        if(!is.null(cl_sg_set()) && length(unique(cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups ])) != length(input$cell_lines)){
+
+
+    observeEvent(input$cell_lines,
+      {
+        if ("Custom" %in% input$subgroups) {
           prev_selected_cell_lines(input$cell_lines)
-          prev_selected_subgroups(input$subgroups)
-          updatePickerInput(session, inputId = "subgroups", 
-                            label = "Select Cell Lines By Subgroups",
-                            selected = "Custom",
-                            choices = c("Custom",subgroups_choices()))
         }
-      }
-    }, ignoreNULL = F)
-    
+        else {
+          # check whether the selected cell line match those subgroups.
+          if (!is.null(cl_sg_set()) && length(unique(cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups])) != length(input$cell_lines)) {
+            prev_selected_cell_lines(input$cell_lines)
+            prev_selected_subgroups(input$subgroups)
+            updatePickerInput(session,
+              inputId = "subgroups",
+              label = "Select Cell Lines By Subgroups",
+              selected = "Custom",
+              choices = c("Custom", subgroups_choices())
+            )
+          }
+        }
+      },
+      ignoreNULL = F
+    )
+
     list(
       cellLines = reactive(input$cell_lines),
       subgroups = reactive(input$subgroups)
     )
   })
-  
 }
 
 
@@ -169,86 +202,94 @@ testVsControl.batch.parametersInput <- function(id) {
   ns <- NS(id)
   tagList(
     checkboxInput(ns("isLowerEfficacy"), "Lower Efficacy Is Better Drug Effect") %>%
-      helper(type = "inline",
-             title = "Lower Efficacy Is Better Drug Effect",
-             icon = "question-circle", colour = NULL,
-             content = c(
-               "<p style='text-indent: 40px'>whether or not lower values efficacy indicate a more effective drug effect</p>"
-             ),
-             size = "s",
-             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+      helper(
+        type = "inline",
+        title = "Lower Efficacy Is Better Drug Effect",
+        icon = "question-circle", colour = NULL,
+        content = c(
+          "<p style='text-indent: 40px'>whether or not lower values efficacy indicate a more effective drug effect</p>"
+        ),
+        size = "s",
+        buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
     checkboxInput(ns("uncertainty"), "Calculate Uncertainty") %>%
-      helper(type = "inline",
-             title = "Calculate Uncertainty",
-             icon = "question-circle", colour = NULL,
-             content = c(
-               "<p style= 'text-indent:40px'>whether or not a Monte Carlo simulation should be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements.</p>"
-             ),
-             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+      helper(
+        type = "inline",
+        title = "Calculate Uncertainty",
+        icon = "question-circle", colour = NULL,
+        content = c(
+          "<p style= 'text-indent:40px'>whether or not a Monte Carlo simulation should be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements.</p>"
+        ),
+        buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
-    conditionalPanel(condition = "input.uncertainty", ns = ns,
-                     numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
+    conditionalPanel(
+      condition = "input.uncertainty", ns = ns,
+      numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)
+    ),
     checkboxInput(ns("hazardRatio"), "Calculate Hazard Ratios") %>%
-      helper(type = "inline",
-             title = "Calculate Hazard Ratios",
-             icon = "question-circle", colour = NULL,
-             content = c(
-               "<p style = 'text-indent:40px'>whether or not a Hazard Ratios (HR) should be calculated between the control and test treatments. Check if so. Should only be checked for efficacy metrics that range between 0 and 1.</p>"
-             ),
-             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+      helper(
+        type = "inline",
+        title = "Calculate Hazard Ratios",
+        icon = "question-circle", colour = NULL,
+        content = c(
+          "<p style = 'text-indent:40px'>whether or not a Hazard Ratios (HR) should be calculated between the control and test treatments. Check if so. Should only be checked for efficacy metrics that range between 0 and 1.</p>"
+        ),
+        buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
-    checkboxInput(ns("averageDuplicate"),"Average Duplicate Records") %>%
-      helper(type = "inline",
-             title = "Average Duplicate Records",
-             icon = "question-circle", colour = NULL,
-             content = c(
-               "<p style = 'text-indent:40px'>whether or not duplicated records (where a cell line has multiple records for being tested with a given drug at a given concentration) should be averaged</p>"
-             ),
-             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+    checkboxInput(ns("averageDuplicate"), "Average Duplicate Records") %>%
+      helper(
+        type = "inline",
+        title = "Average Duplicate Records",
+        icon = "question-circle", colour = NULL,
+        content = c(
+          "<p style = 'text-indent:40px'>whether or not duplicated records (where a cell line has multiple records for being tested with a given drug at a given concentration) should be averaged</p>"
+        ),
+        buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       )
   )
 }
 
 testVsControl.batch.parametersServer <- function(id, fileType) {
-  moduleServer(id, function(input,output,session) {
-    observeEvent(fileType(),{
-      if(fileType() == "GDSC" || fileType() == "CTRPv2"){
+  moduleServer(id, function(input, output, session) {
+    observeEvent(fileType(), {
+      if (fileType() == "GDSC" || fileType() == "CTRPv2") {
         updateCheckboxInput(session, "isLowerEfficacy", "Lower Efficacy Is Better Drug Effect", value = TRUE)
         disable("isLowerEfficacy")
       }
-      else{
+      else {
         enable("isLowerEfficacy")
       }
     })
-    
-    list(isLowerEfficacy = reactive(input$isLowerEfficacy),
-         uncertainty = reactive(input$uncertainty),
-         hazardRatio = reactive(input$hazardRatio),
-         averageDuplicate = reactive(input$averageDuplicate),
-         nSim = reactive(input$nSimulation))
+
+    list(
+      isLowerEfficacy = reactive(input$isLowerEfficacy),
+      uncertainty = reactive(input$uncertainty),
+      hazardRatio = reactive(input$hazardRatio),
+      averageDuplicate = reactive(input$averageDuplicate),
+      nSim = reactive(input$nSimulation)
+    )
   })
 }
 
 
-#efficacy metric input
+# efficacy metric input
 testVsControl.batch.efficacyMetricInput <- function(id) {
   ns <- NS(id)
-  textInput(ns("efficacyMetric"), "Your Efficacy Metric Name (can be empty)", "Viability", width = '70%')
+  textInput(ns("efficacyMetric"), "Your Efficacy Metric Name (can be empty)", "Viability", width = "70%")
 }
 
 testVsControl.batch.efficacyMetricServer <- function(id, fileType) {
-  moduleServer(id, function(input,output,session) {
+  moduleServer(id, function(input, output, session) {
     observeEvent(fileType(), {
-      if(fileType() == "GDSC" || fileType() == "CTRPv2"){
+      if (fileType() == "GDSC" || fileType() == "CTRPv2") {
         updateTextInput(session, "efficacyMetric", label = "Your Efficacy Metric Name (can be empty)", value = "Viability")
         disable("efficacyMetric")
       }
-      else{
+      else {
         enable("efficacyMetric")
       }
     })
-    
+
     reactive(input$efficacyMetric)
   })
 }
@@ -260,7 +301,7 @@ testVsControl.batch.cellLinesThresholdInput <- function(id) {
 }
 
 testVsControl.batch.cellLinesThresholdServer <- function(id) {
-  moduleServer(id, function(input,output,server){
+  moduleServer(id, function(input, output, server) {
     reactive(input$clThreshold)
   })
 }
@@ -271,126 +312,136 @@ testVsControl.batch.cellLinesThresholdServer <- function(id) {
 testVsControl.batch.ui <- function(id) {
   ns <- NS(id)
   tagList(
-    box(width = NULL, status = "primary", solidHeader = TRUE, title="Control Treatment Input",
-        h5("Please upload a text file containig control treatments information."),
-        h6("Before uploading your file, please modify the header name to:"),
-        h6("Control_Treatment_Drugs;"),
-        h6("Control_Treatment_Doses;"),
-        h6("Test_Treatment_Drugs;"),
-        h6("Test_Treatment_Doses;"),
-        h6("for each control treatment and its corresponding doses, splite each element by ','"),
-        testVsControl.batch.fileInput(ns("batchInputFile")),
-        testVsControl.batch.cellLinesThresholdInput(ns("cellLineThreshold")),
-        testVsControl.batch.cellLineInput(ns("cellLineSelection")),
-        tags$hr(),
-        testVsControl.batch.parametersInput(ns("parametersCheck_batch")),
-        testVsControl.batch.efficacyMetricInput(ns("efficacyMetric_batch")),
-        tags$hr(),
-        actionButton(ns("button"), "RUN")
+    box(
+      width = NULL, status = "primary", solidHeader = TRUE, title = "Control Treatment Input",
+      h5("Please upload a text file containig control treatments information."),
+      h6("Before uploading your file, please modify the header name to:"),
+      h6("Control_Treatment_Drugs;"),
+      h6("Control_Treatment_Doses;"),
+      h6("Test_Treatment_Drugs;"),
+      h6("Test_Treatment_Doses;"),
+      h6("for each control treatment and its corresponding doses, splite each element by ','"),
+      testVsControl.batch.fileInput(ns("batchInputFile")),
+      testVsControl.batch.cellLinesThresholdInput(ns("cellLineThreshold")),
+      testVsControl.batch.cellLineInput(ns("cellLineSelection")),
+      tags$hr(),
+      testVsControl.batch.parametersInput(ns("parametersCheck_batch")),
+      testVsControl.batch.efficacyMetricInput(ns("efficacyMetric_batch")),
+      tags$hr(),
+      actionButton(ns("button"), "RUN")
     ),
-    box(width = NULL, status = "primary", solidHeader = TRUE, title = "Result",
-        downloadButton(ns('downloadData'), 'Download DataTable'),
-        downloadButton(ns('downloadLog'), 'Download Log'),
-        conditionalPanel(condition = "input.button",ns = ns, tabsetPanel(type = "tabs",
-                                                                               tabPanel("Table", withSpinner(DT::dataTableOutput(ns("table")))),
-                                                                               tabPanel('Log', withSpinner(verbatimTextOutput(ns('log'))))))
+    box(
+      width = NULL, status = "primary", solidHeader = TRUE, title = "Result",
+      downloadButton(ns("downloadData"), "Download DataTable"),
+      downloadButton(ns("downloadLog"), "Download Log"),
+      conditionalPanel(condition = "input.button", ns = ns, tabsetPanel(
+        type = "tabs",
+        tabPanel("Table", withSpinner(DT::dataTableOutput(ns("table")))),
+        tabPanel("Log", withSpinner(verbatimTextOutput(ns("log"))))
+      ))
     )
   )
 }
 
-testVsControl.batch.server <- function(id,fileInfo) {
-  moduleServer(id, function(input,output,session) {
+testVsControl.batch.server <- function(id, fileInfo) {
+  moduleServer(id, function(input, output, session) {
     dataset <- fileInfo$dataset
-    
+
     extraCol <- fileInfo$extraCol
-    
+
     fileType <- fileInfo$type
-    
+
     batchInput <- testVsControl.batch.fileServer("batchInputFile")
-    
+
     selectedCellLineAndSubgroups <- testVsControl.batch.cellLineServer("cellLineSelection", dataset)
-    
+
     selectedCellLine <- selectedCellLineAndSubgroups$cellLines
-    
+
     selectedSubgroups <- selectedCellLineAndSubgroups$subgroups
-    
+
     checkedParameters <- testVsControl.batch.parametersServer("parametersCheck_batch", fileType)
-    
+
     efficacyMetric <- testVsControl.batch.efficacyMetricServer("efficacyMetric_batch", fileType)
-    
+
     nSim <- checkedParameters$nSim
-    
+
     warningMessage <- reactiveVal(NULL)
-    
+
     tableResult <- reactiveVal(NULL)
-    
+
     output$log <- renderText(warningMessage())
-    
-    output$table <- DT::renderDataTable({
-      tableResult()[, names(tableResult()) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
-    },options = list(scrollX = TRUE))
-    
+
+    output$table <- DT::renderDataTable(
+      {
+        tableResult()[, names(tableResult()) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
+      },
+      options = list(scrollX = TRUE)
+    )
+
     output$downloadData <- downloadHandler(
       filename = function() {
-        paste('data-', Sys.Date(), '.txt', sep='')
+        paste("data-", Sys.Date(), ".txt", sep = "")
       },
       content = function(con) {
         write_delim(tableResult(), con, delim = "\t")
       }
     )
-    
+
     output$downloadLog <- downloadHandler(
       filename = function() {
-        paste('data-', Sys.Date(), '.txt', sep='')
+        paste("data-", Sys.Date(), ".txt", sep = "")
       },
       content = function(con) {
         write_delim(warningMessage(), con, delim = "\t")
       }
     )
-    
+
     clThreshold <- testVsControl.batch.cellLinesThresholdServer("cellLineThreshold")
-    
+
     observeEvent(input$button, {
-     
-      
       validate(
         need(!is.null(dataset()), "Please upload your dataset"),
         need(!is.null(batchInput()), "Please upload your input file"),
         need(!is.null(selectedCellLine()), "Please select cell lines")
       )
-      
+
       controlTreatmentList <- list()
       testTreatmentList <- list()
-      
-      for(i in 1:nrow(batchInput())){
-        ctDrugs <- strsplit(batchInput()[i,]$Control_Treatment_Drugs, ",")[[1]]
-        ctDoses <- strsplit(batchInput()[i,]$Control_Treatment_Doses, ",")[[1]]
-        testDrugs <- strsplit(batchInput()[i,]$Test_Treatment_Drugs, ",")[[1]]
-        testDoses <- strsplit(batchInput()[i,]$Test_Treatment_Doses, ",")[[1]]
+
+      for (i in 1:nrow(batchInput())) {
+        ctDrugs <- strsplit(batchInput()[i, ]$Control_Treatment_Drugs, ",")[[1]]
+        ctDoses <- strsplit(batchInput()[i, ]$Control_Treatment_Doses, ",")[[1]]
+        testDrugs <- strsplit(batchInput()[i, ]$Test_Treatment_Drugs, ",")[[1]]
+        testDoses <- strsplit(batchInput()[i, ]$Test_Treatment_Doses, ",")[[1]]
         validate(
           need(length(ctDrugs) == length(ctDoses), "Length of control treatment drugs and doses does not match"),
           need(length(testDrugs) == length(testDoses), "Length of test treatment drugs and doses does not match")
         )
-        controlTreatmentList[[i]] <- data.frame(Drug = ctDrugs, 
-                                           Dose = as.numeric(ctDoses),
-                                           stringsAsFactors = F)
-        testTreatmentList[[i]] <- data.frame(Drug = testDrugs, 
-                                        Dose = as.numeric(testDoses),
-                                        stringsAsFactors = F)
+        controlTreatmentList[[i]] <- data.frame(
+          Drug = ctDrugs,
+          Dose = as.numeric(ctDoses),
+          stringsAsFactors = F
+        )
+        testTreatmentList[[i]] <- data.frame(
+          Drug = testDrugs,
+          Dose = as.numeric(testDoses),
+          stringsAsFactors = F
+        )
       }
-      
-      
-      if("seCol" %in% extraCol())
-        eff_se_col = "Efficacy_SE"
-      else
-        eff_se_col = NULL
-      
+
+
+      if ("seCol" %in% extraCol()) {
+        eff_se_col <- "Efficacy_SE"
+      } else {
+        eff_se_col <- NULL
+      }
+
       warning_msg <- ""
       res_list <- vector("list", length = length(controlTreatmentList))
       monotherapy_data <- dataset()
       withProgress(message = "Computing...", value = 0, {
-        for(i in 1:length(controlTreatmentList)) {
-          #get mono data
+        for (i in 1:length(controlTreatmentList)) {
+          # get mono data
           res_list[[i]] <- withCallingHandlers(
             tryCatch(
               expr = {
@@ -413,36 +464,36 @@ testVsControl.batch.server <- function(id,fileInfo) {
                   Average_Duplicate_Records = checkedParameters$averageDuplicate()
                 )
                 cat(str(res))
-                if(!is.data.frame(res[[1]])){
+                if (!is.data.frame(res[[1]])) {
                   NULL
-                } else{
-                  res <- cbind(Control_Treatment_Drugs = paste(res$Control_Treatment$Control_Treatment_Drugs, collapse = ", "), 
-                               Control_Treatment_Drug_Concentration = paste(res$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
-                               Test_Treatment_Drugs = paste(res$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
-                               Test_Treatment_Drugs_Concentrations = paste(res$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
-                               Number_of_Cell_Lines_Used = length(res$Cell_Lines_Used),
-                               Cell_Lines_Used = paste(res$Cell_Lines_Used, collapse = ", "),
-                               res[[1]])
+                } else {
+                  res <- cbind(
+                    Control_Treatment_Drugs = paste(res$Control_Treatment$Control_Treatment_Drugs, collapse = ", "),
+                    Control_Treatment_Drug_Concentration = paste(res$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
+                    Test_Treatment_Drugs = paste(res$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
+                    Test_Treatment_Drugs_Concentrations = paste(res$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
+                    Number_of_Cell_Lines_Used = length(res$Cell_Lines_Used),
+                    Cell_Lines_Used = paste(res$Cell_Lines_Used, collapse = ", "),
+                    res[[1]]
+                  )
                   res
                 }
-              }),
+              }
+            ),
             warning = function(w) {
-              warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+              warning_msg <<- paste0(warning_msg, paste0(Sys.Date(), ": ", conditionMessage(w), "\n"))
               invokeRestart("muffleWarning")
             }
           )
-          incProgress(1/nrow(pairs))
+          incProgress(1 / nrow(pairs))
         }
       })
-      if(nchar(warning_msg) == 0)
+      if (nchar(warning_msg) == 0) {
         warning_msg <- "No warning messages"
+      }
       warningMessage(warning_msg)
-      
+
       tableResult(rbindlist(res_list))
     })
   })
 }
-
-
-
-
