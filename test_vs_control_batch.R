@@ -35,17 +35,17 @@ testVsControl.batch.cellLineInput <- function(id) {
   tagList(
     pickerInput(ns("subgroups"), "Select Cell Lines By Subgroups",
       choices = NULL,
-      options = list(`liveSearchStyle` = "startsWith", `liveSearch` = TRUE),
+      options = list(`live-search-style` = "startsWith", `live-search` = TRUE),
       multiple = T
     ),
-    actionButton(ns("selectAllSubgroups"), "Select All Subgroups"),
-    actionButton(ns("deselectAllSubgroups"), "Deselect All Subgroups"),
+    div(style="display:inline-block;width:10%;text-align: center;",actionButton(ns("selectAllSubgroups"),"All Subgroups")),
+    div(style="display:inline-block;width:10%;text-align: center;",actionButton(ns("deselectAllSubgroups"),"Clean Subgroups")),
     pickerInput(ns("cell_lines"), "Cell-Line available for both drugs (Multiple)",
       choices = list(
         `Cancer Cell Lines` = NULL
       ),
       options = list(
-        `actions-box` = TRUE, `liveSearchStyle` = "startsWith", `liveSearch` = TRUE,
+        `actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE,
         `selected-text-format` = "count",
         `count-selected-text` = "{0} models choosed (on a total of {1})"
       ),

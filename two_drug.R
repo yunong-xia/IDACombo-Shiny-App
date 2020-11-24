@@ -27,14 +27,14 @@ twoDrugs.cellLineInput <- function(id) {
   tagList(
     pickerInput(ns("subgroups"),"Select Cell Lines By Subgroups",
                 choices = NULL,
-                options = list(`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
+                options = list(`live-search-style` = "startsWith" , `live-search` = TRUE),
                 multiple = T),
-    actionButton(ns("selectAllSubgroups"),"Select All Subgroups"),
-    actionButton(ns("deselectAllSubgroups"),"Deselect All Subgroups"),
+    div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("selectAllSubgroups"),"All Subgroups")),
+    div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("deselectAllSubgroups"),"Clean Subgroups")),
     pickerInput(ns("cell_lines"),"Select Cell Lines",
                 choices = list(
                   `Cancer Cell Lines` = NULL),
-                options = list(`actions-box` = TRUE,`liveSearchStyle` = "startsWith" , `liveSearch` = TRUE,
+                options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE,
                                `selected-text-format`= "count",
                                `count-selected-text` = "{0} subgroups chosen (on a total of {1})"),
                 multiple = T)
@@ -168,13 +168,13 @@ twoDrugs.doseInput <- function(id) {
                 choices = NULL, 
                 options = list(`actions-box` = TRUE,`selected-text-format` = "count > 2",
                                `count-selected-text` = "{0}/{1} Concentrations",
-                               `liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
+                               `live-search-style` = "startsWith" , `live-search` = TRUE),
                 multiple = T),
     pickerInput(ns("dose2"),"Drug dose available for drug 2 (Multiple)", 
                 choices = NULL, 
                 options = list(`actions-box` = TRUE,`selected-text-format` = "count > 2",
                                `count-selected-text` = "{0}/{1} Concentrations",
-                               `liveSearchStyle` = "startsWith" , `liveSearch` = TRUE),
+                               `live-search-style` = "startsWith" , `live-search` = TRUE),
                 multiple = T)
   )
 }

@@ -40,8 +40,8 @@ introductionPage <- fluidPage(
         tags$img(
           src = "huang_lab_icon.png",
           align = "center",
-          width = "340px",
-          height = "60px"
+          width = "100%",
+          height = "auto"
         )
       )
     ),

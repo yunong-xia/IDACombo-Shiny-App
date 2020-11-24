@@ -4,7 +4,7 @@ controlPlusOne.batch.controlTreatmentInput <- function(id) {
   ns <- NS(id)
   pickerInput(ns("drugs"), "Select Drugs in Treatment (Multiple)",
     choices = NULL,
-    options = list(`actions-box` = TRUE, `liveSearchStyle` = "startsWith", `liveSearch` = TRUE),
+    options = list(`actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE),
     multiple = T
   )
 }
@@ -60,7 +60,12 @@ controlPlusOne.batch.doseServer <- function(id, dataset, selectedControlTreatmen
 # plusOne treatment
 controlPlusOne.batch.drugToAddInput <- function(id) {
   ns <- NS(id)
-  selectInput(ns("drugToAdd"), label = "Drug to Add (Multiple Drugs)", choices = NULL, multiple = T)
+  pickerInput(ns("drugToAdd"), label = "Drug to Add (Multiple Drugs)", choices = NULL, multiple = T,
+              options = list(
+                `actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE,
+                `selected-text-format` = "count",
+                `count-selected-text` = "{0} of drugs chosen (on a total of {1})"
+              ))
 }
 
 
@@ -68,7 +73,7 @@ controlPlusOne.batch.drugToAddServer <- function(id, dataset, selectedControlTre
   moduleServer(id, function(input, output, session) {
     observeEvent(c(dataset(), selectedControlTreatment()), {
       to_add_choices <- setdiff(unique(dataset()$Drug), selectedControlTreatment())
-      updateSelectInput(session,
+      updatePickerInput(session,
         inputId = "drugToAdd", label = "Drug to Add",
         choices = to_add_choices
       )
@@ -85,19 +90,19 @@ controlPlusOne.batch.cellLineInput <- function(id) {
   tagList(
     pickerInput(ns("subgroups"), "Select Cell Lines By Subgroups",
       choices = NULL,
-      options = list(`liveSearchStyle` = "startsWith", `liveSearch` = TRUE),
+      options = list(`live-search-style` = "startsWith", `live-search` = TRUE),
       multiple = T
     ),
-    actionButton(ns("selectAllSubgroups"), "Select All Subgroups"),
-    actionButton(ns("deselectAllSubgroups"), "Deselect All Subgroups"),
+    div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("selectAllSubgroups"),"All Subgroups")),
+    div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("deselectAllSubgroups"),"Clean Subgroups")),
     pickerInput(ns("cell_lines"), "Cell-Line available for both drugs (Multiple)",
       choices = list(
         `Cancer Cell Lines` = NULL
       ),
       options = list(
-        `actions-box` = TRUE, `liveSearchStyle` = "startsWith", `liveSearch` = TRUE,
+        `actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE,
         `selected-text-format` = "count",
-        `count-selected-text` = "{0} models choosed (on a total of {1})"
+        `count-selected-text` = "{0} of cell lines chosen (on a total of {1})"
       ),
       multiple = T
     )

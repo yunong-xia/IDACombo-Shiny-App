@@ -4,7 +4,7 @@ controlPlusOne.controlTreatmentInput <- function(id) {
   ns <- NS(id)
   pickerInput(ns("drugs"), "Select Drugs in Treatment (Multiple)",
     choices = NULL,
-    options = list(`actions-box` = TRUE, `liveSearchStyle` = "startsWith", `liveSearch` = TRUE),
+    options = list(`actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE),
     multiple = T
   )
 }
@@ -83,17 +83,17 @@ controlPlusOne.cellLineInput <- function(id) {
   tagList(
     pickerInput(ns("subgroups"), "Select Cell Lines By Subgroups",
       choices = NULL,
-      options = list(`liveSearchStyle` = "startsWith", `liveSearch` = TRUE),
+      options = list(`live-search-style` = "startsWith", `live-search` = TRUE),
       multiple = T
     ),
-    actionButton(ns("selectAllSubgroups"), "Select All Subgroups"),
-    actionButton(ns("deselectAllSubgroups"), "Deselect All Subgroups"),
+    div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("selectAllSubgroups"),"All Subgroups")),
+    div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("deselectAllSubgroups"),"Clean Subgroups")),
     pickerInput(ns("cell_lines"), "Cell-Line available for both drugs (Multiple)",
       choices = list(
         `Cancer Cell Lines` = NULL
       ),
       options = list(
-        `actions-box` = TRUE, `liveSearchStyle` = "startsWith", `liveSearch` = TRUE,
+        `actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE,
         `selected-text-format` = "count",
         `count-selected-text` = "{0} models choosed (on a total of {1})"
       ),
@@ -460,22 +460,26 @@ controlPlusOne.server <- function(id, fileInfo) {
     plot.object <- eventReactive(input$button,{
       res <- result()
       
-      p1 <- qplot(res$Drug_to_Add_Dose,res$Mean_Combo_Viability)
+      p1 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$Mean_Combo_Viability)) +
+        xlab("Drug to Add Dose") + ylab("Mean Combo Viability")
       if(checkedParameters$uncertainty()){
         viability_CI <- rbindlist(lapply(res[["Mean_Combo_Viability_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
-        p1 <- p1 + geom_errorbar(aes(ymin=viability_CI[[1]], ymax=viability_CI[[2]]))
+        p1 <- p1 + geom_errorbar(aes(ymin=viability_CI[[1]], ymax=viability_CI[[2]]), width=.05, position=position_dodge(.9))
       }
       if(checkedParameters$comboscore()){
-        p2 <- qplot(res$Drug_to_Add_Dose,res$HR_vs_Control_Treatment) 
-        p3 <- qplot(res$Drug_to_Add_Dose,res$HR_vs_Drug_to_Add) 
-        p4 <- qplot(res$Drug_to_Add_Dose,res$IDA_Comboscore)
+        p2 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$HR_vs_Control_Treatment)) +
+          xlab("Drug to Add Dose") + ylab("HR vs Control Treatment")
+        p3 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$HR_vs_Drug_to_Add)) +
+          xlab("Drug to Add Dose") + ylab("HR vs Drug to Add")
+        p4 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$IDA_Comboscore)) +
+          xlab("Drug to Add Dose") + ylab("IDA Comboscore")
         if(checkedParameters$uncertainty()){
           HR_vs_Control_Treatment_CI <- rbindlist(lapply(res[["HR_vs_Control_Treatment_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
           HR_vs_Drug_To_Add_CI <- rbindlist(lapply(res[["HR_vs_Drug_to_Add_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
           IDA_Comboscore_CI <- rbindlist(lapply(res[["IDA_Comboscore_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
-          p2 <- p2 + geom_errorbar(aes(ymin=HR_vs_Control_Treatment_CI[[1]], ymax=HR_vs_Control_Treatment_CI[[2]]))
-          p3 <- p3 + geom_errorbar(aes(ymin=HR_vs_Drug_To_Add_CI[[1]], ymax=HR_vs_Drug_To_Add_CI[[2]]))
-          p4 <- p4 + geom_errorbar(aes(ymin=IDA_Comboscore_CI[[1]], ymax=IDA_Comboscore_CI[[2]]))
+          p2 <- p2 + geom_errorbar(aes(ymin=HR_vs_Control_Treatment_CI[[1]], ymax=HR_vs_Control_Treatment_CI[[2]]), width=.05, position=position_dodge(.9))
+          p3 <- p3 + geom_errorbar(aes(ymin=HR_vs_Drug_To_Add_CI[[1]], ymax=HR_vs_Drug_To_Add_CI[[2]]), width=.05, position=position_dodge(.9))
+          p4 <- p4 + geom_errorbar(aes(ymin=IDA_Comboscore_CI[[1]], ymax=IDA_Comboscore_CI[[2]]), width=.05, position=position_dodge(.9))
         }
       }
       
