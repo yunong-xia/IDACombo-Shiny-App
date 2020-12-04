@@ -232,23 +232,11 @@ twoDrugs.doseServer <- function(id, dataset, fileType,selectedDrug1, selectedDru
 twoDrugs.parametersInput <- function(id) {
   ns <- NS(id)
   tagList(
-    checkboxInput(ns("isLowerEfficacy"), "Lower Efficacy Is Better Drug Effect") %>%
-      helper(type = "inline",
-             title = "Lower Efficacy Is Better Drug Effect",
-             icon = "question-circle", colour = NULL,
-             content = c(
-                         "<p style='text-indent: 40px'>whether or not lower values efficacy indicate a more effective drug effect</p>"
-                         ),
-             size = "s",
-             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
-             ),
     checkboxInput(ns("uncertainty"), "Calculate Uncertainty") %>%
       helper(type = "inline",
              title = "Calculate Uncertainty",
              icon = "question-circle", colour = NULL,
-             content = c(
-                         "<p style= 'text-indent:40px'>whether or not a Monte Carlo simulation should be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements.</p>"
-                         ),
+             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction.",
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
              ),
     conditionalPanel(condition = "input.uncertainty", ns = ns,
@@ -257,73 +245,29 @@ twoDrugs.parametersInput <- function(id) {
       helper(type = "inline",
              title = "Calculate IDAComboscore And HazardRatios",
              icon = "question-circle", colour = NULL,
-             content = c(
-                         "<p style = 'text-indent:40px'>whether or not IDA-Comboscores and Hazard Ratios (HRs) should be calculated between monotherapies and the drug combination.</p>"
-                        ),
+             content = "Should IDA-Comboscores and Hazard Ratios (HRs) be calculated between monotherapies and the drug combination? Note that these values are only meaningful when efficacy values are scaled between 0 and 1 (i.e. viability, normalized AUC, etc.).",
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
              ),
-    checkboxInput(ns("averageDuplicate"),"Average Duplicate Records") %>%
+    checkboxInput(ns("averageDuplicate"),"Average Duplicate Records", value = T) %>%
       helper(type = "inline",
              title = "Average Duplicate Records",
              icon = "question-circle", colour = NULL,
-             content = c(
-                         "<p style = 'text-indent:40px'>whether or not duplicated records (where a cell line has multiple records for being tested with a given drug at a given concentration) should be averaged</p>"
-                        ),
+             content =  "Should duplicated records (i.e. where a cell line has multiple records for being tested with a given drug at a given concentration) should be averaged? If this option is not selected and duplicates are found, IDACombo will skip all except the first occurence of each duplicate.",
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
              )
   )
 }
 
-twoDrugs.parametersServer <- function(id, fileType) {
+twoDrugs.parametersServer <- function(id, fileType, isLowerEfficacy) {
   moduleServer(id, function(input,output,session) {
-    observeEvent(fileType(),{
-      if(fileType() == "provided"){
-        updateCheckboxInput(session, "isLowerEfficacy", "Lower Efficacy Is Better Drug Effect", value = TRUE)
-        disable("isLowerEfficacy")
-      }
-      else{
-        enable("isLowerEfficacy")
-        updateCheckboxInput(session,"isLowerEfficacy", "Lower Efficacy Is Better Drug Effect", value = FALSE)
-      }
-    })
     
-    list(isLowerEfficacy = reactive(input$isLowerEfficacy),
+    list(isLowerEfficacy = isLowerEfficacy,
          uncertainty = reactive(input$uncertainty),
          comboscore = reactive(input$comboscore),
          averageDuplicate = reactive(input$averageDuplicate),
          nSim = reactive(input$nSimulation))
   })
 }
-
-#efficacy metric input
-twoDrugs.efficacyMetricInput <- function(id) {
-  ns <- NS(id)
-  textInput(ns("efficacyMetric"), "Your Efficacy Metric Name (can be empty)", "Viability", width = '70%')
-}
-
-twoDrugs.efficacyMetricServer <- function(id, fileType) {
-  moduleServer(id, function(input,output,session) {
-    
-    observeEvent(fileType(), {
-      if(fileType() =="provided"){
-        updateTextInput(session, "efficacyMetric", label = "Your Efficacy Metric Name (can be empty)", value = "Viability")
-        disable("efficacyMetric")
-      }
-      else{
-        enable("efficacyMetric")
-      }
-    })
-    
-    reactive(input$efficacyMetric)
-  })
-}
-
-
-
-
-
-
-
 
 #########   put all the elements together   ##########
 
@@ -336,7 +280,6 @@ twoDrugs.ui <- function(id) {
         twoDrugs.doseInput(ns("doseSelection")),
         tags$hr(),
         twoDrugs.parametersInput(ns("parametersCheck")),
-        twoDrugs.efficacyMetricInput(ns("efficacyMetric")),
         tags$hr(),
         actionButton(ns("button"), "RUN")
     ),
@@ -363,6 +306,10 @@ twoDrugs.server <- function(id, fileInfo) {
     extraCol <- fileInfo$extraCol
     
     fileType <- fileInfo$type
+  
+    efficacyMetric <- fileInfo$efficacyMetric
+    
+    isLowerEfficacy <- fileInfo$isLowerEfficacy
     
     selectedDrugs <- twoDrugs.drugServer("drugSelection", dataset)
     
@@ -374,11 +321,9 @@ twoDrugs.server <- function(id, fileInfo) {
     
     selectedDose <- twoDrugs.doseServer("doseSelection", dataset, fileType, selectedDrugs$d1, selectedDrugs$d2, selectedCellLines)
     
-    checkedParameters <- twoDrugs.parametersServer("parametersCheck",fileType)
+    checkedParameters <- twoDrugs.parametersServer("parametersCheck",fileType, isLowerEfficacy)
     
     nSim <- checkedParameters$nSim
-    
-    efficacyMetric <- twoDrugs.efficacyMetricServer("efficacyMetric", fileType)
     
     warningMessage <- reactiveVal(NULL)
     
@@ -389,7 +334,6 @@ twoDrugs.server <- function(id, fileInfo) {
     })
     
     tableResult <- eventReactive(input$button, {
-
       validate(
         need(!is.null(dataset()), "Please upload your data"),
         need(!is.null(selectedDrugs$d1()), "Please select drug 1"),
@@ -406,7 +350,7 @@ twoDrugs.server <- function(id, fileInfo) {
                       Drug == selectedDrugs$d2(),
                       Drug_Dose %in% selectedDose$dose2())
 
-
+      
       select <- rbindlist(list(select1,select2))
       if("seCol" %in% extraCol())
         eff_se_col = "Efficacy_SE"
@@ -423,7 +367,7 @@ twoDrugs.server <- function(id, fileInfo) {
               Drug_Name_Column = "Drug",
               Drug_Concentration_Column = "Drug_Dose",
               Efficacy_Column = "Efficacy",
-              LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEff(),
+              LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
               Efficacy_Metric_Name = efficacyMetric(),
               Drug1 = selectedDrugs$d1(),
               Drug2 = selectedDrugs$d2(),

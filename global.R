@@ -20,7 +20,7 @@ library(openxlsx)
 library(ggplot2)
 library(gridExtra)
 
-options(shiny.maxRequestSize = 300 * 1024^2)
+options(shiny.maxRequestSize = 500 * 1024^2)
 options(stringsAsFactors = FALSE)
 
 par3d(cex = 1)

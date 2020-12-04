@@ -24,17 +24,6 @@ twoDrugs.batch.drugServer <- function(id, dataset) {
   })
 }
 
-twoDrugs.batch.cellLinesThresholdInput <- function(id) {
-  ns <- NS(id)
-  numericInput(inputId = ns("clThreshold"), label = "Cell Lines Number Threshold", value = 10, min = 2, max = 1000)
-}
-
-twoDrugs.batch.cellLinesThresholdServer <- function(id) {
-  moduleServer(id, function(input,output,server){
-    reactive(input$clThreshold)
-  })
-}
-
 
 twoDrugs.batch.cellLineInput <- function(id) {
   ns <- NS(id)
@@ -181,26 +170,14 @@ twoDrugs.batch.cellLineServer <- function(id, dataset) {
 
 
 
-
-
-
-
-
-
-
-
-
-
 twoDrugs.batch.ui <- function(id) {
   ns <- NS(id) 
   tagList(
     box(width = 3, status = "primary", solidHeader = TRUE, title="Batch Process Input",
         twoDrugs.batch.drugInput(ns("drugSelection_batch")),
         twoDrugs.batch.cellLineInput(ns("cellLineSelection_batch")),
-        twoDrugs.batch.cellLinesThresholdInput(ns("cellLinesThreshold")),
         tags$hr(),
         twoDrugs.parametersInput(ns("parametersCheck_batch")),
-        twoDrugs.efficacyMetricInput(ns("efficacyMetric_batch")),
         tags$hr(),
         actionButton(ns("button_batch"), "RUN")
     ),
@@ -227,6 +204,10 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     
     fileType <- fileInfo$type
     
+    efficacyMetric <- fileInfo$efficacyMetric
+    
+    isLowerEfficacy <- fileInfo$isLowerEfficacy
+    
     # get user Input
     selectedDrugs <- twoDrugs.batch.drugServer("drugSelection_batch",dataset)
 
@@ -236,14 +217,11 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     
     selectedSubgroups <- selectedCellLinesAndSubgroups$subgroups
 
-    checkedParameters <- twoDrugs.parametersServer("parametersCheck_batch", fileType)
+    checkedParameters <- twoDrugs.parametersServer("parametersCheck_batch", fileType, isLowerEfficacy)
     
     nSim <- checkedParameters$nSim
 
-    efficacyMetric <- twoDrugs.efficacyMetricServer("efficacyMetric_batch", fileType)
-    
-    clThreshold <- twoDrugs.batch.cellLinesThresholdServer("cellLinesThreshold")
-    
+
     # compute result and generate some message
     warningMessage <- reactiveVal(NULL)
     
@@ -308,7 +286,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
                   Drug_Name_Column = "Drug",
                   Drug_Concentration_Column = "Drug_Dose",
                   Efficacy_Column = "Efficacy",
-                  LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEff(),
+                  LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
                   Efficacy_Metric_Name = efficacyMetric(),
                   Drug1 = as.character(pairs[i,1]),
                   Drug2 = as.character(pairs[i,2]),

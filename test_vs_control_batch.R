@@ -201,108 +201,42 @@ testVsControl.batch.cellLineServer <- function(id, dataset) {
 testVsControl.batch.parametersInput <- function(id) {
   ns <- NS(id)
   tagList(
-    checkboxInput(ns("isLowerEfficacy"), "Lower Efficacy Is Better Drug Effect") %>%
-      helper(
-        type = "inline",
-        title = "Lower Efficacy Is Better Drug Effect",
-        icon = "question-circle", colour = NULL,
-        content = c(
-          "<p style='text-indent: 40px'>whether or not lower values efficacy indicate a more effective drug effect</p>"
-        ),
-        size = "s",
-        buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
-      ),
     checkboxInput(ns("uncertainty"), "Calculate Uncertainty") %>%
-      helper(
-        type = "inline",
-        title = "Calculate Uncertainty",
-        icon = "question-circle", colour = NULL,
-        content = c(
-          "<p style= 'text-indent:40px'>whether or not a Monte Carlo simulation should be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements.</p>"
-        ),
-        buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+      helper(type = "inline",
+             title = "Calculate Uncertainty",
+             icon = "question-circle", colour = NULL,
+             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction.",
+             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
-    conditionalPanel(
-      condition = "input.uncertainty", ns = ns,
-      numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)
-    ),
+    conditionalPanel(condition = "input.uncertainty", ns = ns,
+                     numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
     checkboxInput(ns("hazardRatio"), "Calculate Hazard Ratios") %>%
-      helper(
-        type = "inline",
-        title = "Calculate Hazard Ratios",
-        icon = "question-circle", colour = NULL,
-        content = c(
-          "<p style = 'text-indent:40px'>whether or not a Hazard Ratios (HR) should be calculated between the control and test treatments. Check if so. Should only be checked for efficacy metrics that range between 0 and 1.</p>"
-        ),
-        buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+      helper(type = "inline",
+             title = "Calculate IDAComboscore And HazardRatios",
+             icon = "question-circle", colour = NULL,
+             content = "Should Hazard Ratios (HRs) be calculated between the test and control therapies? Note that these values are only meaningful when efficacy values are scaled between 0 and 1 (i.e. viability, normalized AUC, etc.).",
+             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
-    checkboxInput(ns("averageDuplicate"), "Average Duplicate Records") %>%
-      helper(
-        type = "inline",
-        title = "Average Duplicate Records",
-        icon = "question-circle", colour = NULL,
-        content = c(
-          "<p style = 'text-indent:40px'>whether or not duplicated records (where a cell line has multiple records for being tested with a given drug at a given concentration) should be averaged</p>"
-        ),
-        buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+    checkboxInput(ns("averageDuplicate"),"Average Duplicate Records", value = T) %>%
+      helper(type = "inline",
+             title = "Average Duplicate Records",
+             icon = "question-circle", colour = NULL,
+             content =  "Should duplicated records (i.e. where a cell line has multiple records for being tested with a given drug at a given concentration) should be averaged? If this option is not selected and duplicates are found, IDACombo will skip all except the first occurence of each duplicate.",
+             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       )
   )
 }
 
-testVsControl.batch.parametersServer <- function(id, fileType) {
+testVsControl.batch.parametersServer <- function(id, fileType, isLowerEfficacy) {
   moduleServer(id, function(input, output, session) {
-    observeEvent(fileType(), {
-      if (fileType() == "provided") {
-        updateCheckboxInput(session, "isLowerEfficacy", "Lower Efficacy Is Better Drug Effect", value = TRUE)
-        disable("isLowerEfficacy")
-      }
-      else {
-        enable("isLowerEfficacy")
-      }
-    })
 
     list(
-      isLowerEfficacy = reactive(input$isLowerEfficacy),
+      isLowerEfficacy = isLowerEfficacy,
       uncertainty = reactive(input$uncertainty),
       hazardRatio = reactive(input$hazardRatio),
       averageDuplicate = reactive(input$averageDuplicate),
       nSim = reactive(input$nSimulation)
     )
-  })
-}
-
-
-# efficacy metric input
-testVsControl.batch.efficacyMetricInput <- function(id) {
-  ns <- NS(id)
-  textInput(ns("efficacyMetric"), "Your Efficacy Metric Name (can be empty)", "Viability", width = "70%")
-}
-
-testVsControl.batch.efficacyMetricServer <- function(id, fileType) {
-  moduleServer(id, function(input, output, session) {
-    observeEvent(fileType(), {
-      if (fileType() == "provided") {
-        updateTextInput(session, "efficacyMetric", label = "Your Efficacy Metric Name (can be empty)", value = "Viability")
-        disable("efficacyMetric")
-      }
-      else {
-        enable("efficacyMetric")
-      }
-    })
-
-    reactive(input$efficacyMetric)
-  })
-}
-
-
-testVsControl.batch.cellLinesThresholdInput <- function(id) {
-  ns <- NS(id)
-  numericInput(inputId = ns("clThreshold"), label = "Cell Lines Number Threshold", value = 10, min = 2, max = 100)
-}
-
-testVsControl.batch.cellLinesThresholdServer <- function(id) {
-  moduleServer(id, function(input, output, server) {
-    reactive(input$clThreshold)
   })
 }
 
@@ -322,11 +256,9 @@ testVsControl.batch.ui <- function(id) {
       h6("Test_Treatment_Doses;"),
       h6("for each control treatment and its corresponding doses, splite each element by ','"),
       testVsControl.batch.fileInput(ns("batchInputFile")),
-      testVsControl.batch.cellLinesThresholdInput(ns("cellLineThreshold")),
       testVsControl.batch.cellLineInput(ns("cellLineSelection")),
       tags$hr(),
       testVsControl.batch.parametersInput(ns("parametersCheck_batch")),
-      testVsControl.batch.efficacyMetricInput(ns("efficacyMetric_batch")),
       tags$hr(),
       actionButton(ns("button"), "RUN")
     ),
@@ -350,6 +282,10 @@ testVsControl.batch.server <- function(id, fileInfo) {
     extraCol <- fileInfo$extraCol
 
     fileType <- fileInfo$type
+    
+    efficacyMetric <- fileInfo$efficacyMetric
+    
+    isLowerEfficacy <- fileInfo$isLowerEfficacy
 
     batchInput <- testVsControl.batch.fileServer("batchInputFile")
 
@@ -359,9 +295,7 @@ testVsControl.batch.server <- function(id, fileInfo) {
 
     selectedSubgroups <- selectedCellLineAndSubgroups$subgroups
 
-    checkedParameters <- testVsControl.batch.parametersServer("parametersCheck_batch", fileType)
-
-    efficacyMetric <- testVsControl.batch.efficacyMetricServer("efficacyMetric_batch", fileType)
+    checkedParameters <- testVsControl.batch.parametersServer("parametersCheck_batch", fileType, isLowerEfficacy)
 
     nSim <- checkedParameters$nSim
 
@@ -395,8 +329,6 @@ testVsControl.batch.server <- function(id, fileInfo) {
         write_delim(warningMessage(), con, delim = "\t")
       }
     )
-
-    clThreshold <- testVsControl.batch.cellLinesThresholdServer("cellLineThreshold")
 
     observeEvent(input$button, {
       validate(
