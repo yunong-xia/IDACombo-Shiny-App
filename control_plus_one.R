@@ -470,13 +470,15 @@ controlPlusOne.server <- function(id, fileInfo) {
     
     plot.object <- eventReactive(input$button,{
       res <- result()
+      name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
       if(fileType() == "provided"){
         res$Drug_to_Add_Dose <- as.numeric(gsub("\\(Csustained\\) ", "", res$Drug_to_Add_Dose))
       }
-      p1 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$Mean_Combo_Viability)) +
-        xlab("Drug to Add Dose") + ylab("Mean Combo Viability")
+      p1 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res[[name_of_combo_efficacy]])) +
+        xlab("Drug to Add Dose") + ylab(paste0("Mean Combo ",efficacyMetric()))
       if(checkedParameters$uncertainty()){
-        viability_CI <- rbindlist(lapply(res[["Mean_Combo_Viability_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
+        name_of_combo_efficacy_CI <- paste0("Mean_Combo_",efficacyMetric(),"_95%_Confidence_Interval")
+        viability_CI <- rbindlist(lapply(res[[name_of_combo_efficacy_CI]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
         p1 <- p1 + geom_errorbar(aes(ymin=viability_CI[[1]], ymax=viability_CI[[2]]), width=.05, position=position_dodge(.9))
       }
       if(checkedParameters$comboscore()){

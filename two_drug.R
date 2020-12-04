@@ -423,8 +423,8 @@ twoDrugs.server <- function(id, fileInfo) {
       res_dataframe <- res_list[[1]]
       cbind(Drug_1 = res_list[[2]],
             Drug_2 = res_list[[3]],
-            res_dataframe,
-            Numbers_of_Used_Cell_Lines = length(res_list[[4]]))
+            Numbers_of_Used_Cell_Lines = length(res_list[[4]]),
+            res_dataframe)
 
     })
     
@@ -446,8 +446,9 @@ twoDrugs.server <- function(id, fileInfo) {
       plot.data$Group <- factor(plot.data$Group, levels = c(paste0(plot.data$Drug_1[1], " Monotherapy"), paste0(plot.data$Drug_2[1], " Monotherapy"), "Origin", "Predicted Combination"))
       plot.data$Drug1Dose <- as.numeric(plot.data$Drug1Dose)
       plot.data$Drug2Dose <- as.numeric(plot.data$Drug2Dose)
-      plot.data$Mean_Combo_Viability <- as.numeric(plot.data$Mean_Combo_Viability)
-      plot.data$Mean_Combo_Viability <- plot.data$Mean_Combo_Viability * 100
+      name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
+      plot.data[[name_of_combo_efficacy]] <- as.numeric(plot.data[[name_of_combo_efficacy]])
+      plot.data[[name_of_combo_efficacy]] <- plot.data[[name_of_combo_efficacy]] * 100
       plot.data
     })
     
@@ -457,7 +458,8 @@ twoDrugs.server <- function(id, fileInfo) {
       groups <- groups[-origin]
       colors <- c("blue", "green", "white", "magenta")
       rgl.open(useNULL = rgl.useNULL())
-      scatter3d(x = plot.data()$Drug2Dose, y = plot.data()$Mean_Combo_Viability, z = plot.data()$Drug1Dose, 
+      name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
+      scatter3d(x = plot.data()$Drug2Dose, y = plot.data()[[name_of_combo_efficacy]], z = plot.data()$Drug1Dose, 
                 surface = F, grid = F, ellipsoid = F, xlab = "", zlab = "", ylab = "", 
                 groups = plot.data()$Group, axis.ticks = F, axis.scales = T, axis.col = c("blue", "black", "darkgreen"), surface.col = colors)
       par3d(windowRect = c(-1873, -433, -590, 530))
@@ -473,7 +475,7 @@ twoDrugs.server <- function(id, fileInfo) {
       rgl.texts(0, -0.1, at, z.labels, col = "darkgreen")
       rgl.texts(-0.05, at, -0.05, y.labels, col = "black")
       
-      best.monotherapy <- min(plot.data()$Mean_Combo_Viability[grep("Monotherapy", plot.data()$Group)])
+      best.monotherapy <- min(plot.data()[[name_of_combo_efficacy]][grep("Monotherapy", plot.data()$Group)])
       planes3d(a = 0, b = -1, c = 0, d = best.monotherapy/100, alpha = 0.5, col = "green")
       max.z <- signif(as.numeric(formatC(seq(0,max(plot.data()$Drug1Dose), length.out = 5), format = "g", digits = 2)[5]), 1)
       max.x <- signif(as.numeric(formatC(seq(0,max(plot.data()$Drug2Dose), length.out = 5), format = "g", digits = 2)[5]), 1)
