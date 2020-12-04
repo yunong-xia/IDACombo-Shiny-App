@@ -19,7 +19,7 @@ datasetInput <- function(id) {
       ),
       tabPanel(
         "Custom Dataset",
-        h4("A custom dataset can be used to generate IDACombo predictions by uploading it here. The dataset must be saved in a tab or comma separated text format (.tsv or .csv) with each row representing the measured effect of a single drug in a single cell line at a single concentration. The columns must be as follows:"),
+        h4("A custom dataset can be used to generate IDACombo predictions by uploading it here. The dataset must be saved in a tab separated text format (.tsv) with each row representing the measured effect of a single drug in a single cell line at a single concentration. The columns must be as follows:"),
         wellPanel(
         h5(strong("\"Cell_Line\""), ": The names of the cell lines being screened."),
         h5(strong("\"Drug\""), ": The names of the drugs being screened."),
@@ -46,9 +46,8 @@ datasetInput <- function(id) {
         fileInput(ns("dataset"), "Upload your data set",
           multiple = TRUE,
           accept = c(
-            "text/csv",
+            "text",
             "text/comma-separated-values,text/plain",
-            ".csv",
             ".tsv"
           )
         )
@@ -64,50 +63,11 @@ datasetServer <- function(id) {
     fileInfo <- reactiveValues(dataset = NULL, extraCol = NULL, type = NULL, efficacyMetric = NULL, isLowerEfficacy = F)
 
     observeEvent(input$button, {
-      show_modal_spinner(
-        spin = "atom",
-        color = "firebrick",
-        text = "Loading Dataset..."
-      )
-      #first, clean the memory
-      fileInfo$dataset <- NULL
-      if (input$providedDataSet == "GDSC1") {
-        # The path of the data should be modified if the location of the file changes.
-        data_path <- paste0(getwd(), "/www/provided_dataset/GDSC1_Calculated_Viabilities_for_IDACombo_shiny.rds")
-        fileInfo$dataset <- readRDS(data_path)
-        fileInfo$extraCol <- c("seCol", "subCol")
-        fileInfo$type <- "provided"
-        fileInfo$efficacyMetric <- "Viability"
-        fileInfo$isLowerEfficacy <- T
-      }
-      if (input$providedDataSet == "GDSC2") {
-        # The path of the data should be modified if the location of the file changes.
-        data_path <- paste0(getwd(), "/www/provided_dataset/GDSC1_Calculated_Viabilities_for_IDACombo_shiny.rds")
-        fileInfo$dataset <- readRDS(data_path)
-        fileInfo$extraCol <- c("seCol", "subCol")
-        fileInfo$type <- "provided"
-        fileInfo$efficacyMetric <- "Viability"
-        fileInfo$isLowerEfficacy <- T
-      }
-      if (input$providedDataSet == "CTRPv2") {
-        # The path of the data should be modified if the location of the file changes.
-        data_path <- paste0(getwd(), "/www/provided_dataset/CTRPv2_Calculated_Viabilities_for_IDACombo_shiny.rds")
-        fileInfo$dataset <- readRDS(data_path)
-        fileInfo$extraCol <- c("seCol", "subCol")
-        fileInfo$type <- "provided"
-        fileInfo$efficacyMetric <- "Viability"
-        fileInfo$isLowerEfficacy <- T
-      }
-      if (input$providedDataSet == "PRISM_Repurposing") {
-        # The path of the data should be modified if the location of the file changes.
-        data_path <- paste0(getwd(), "/www/provided_dataset/PRISM_Repurposing_Calculated_Viabilities_for_IDACombo_shiny.rds")
-        fileInfo$dataset <- readRDS(data_path)
-        fileInfo$extraCol <- c("seCol", "subCol")
-        fileInfo$type <- "provided"
-        fileInfo$efficacyMetric <- "Viability"
-        fileInfo$isLowerEfficacy <- T
-      }
-      remove_modal_spinner()
+      fileInfo$dataset <- preprovided_dataset[[input$providedDataSet]]
+      fileInfo$extraCol <- c("seCol", "subCol")
+      fileInfo$type <- "provided"
+      fileInfo$efficacyMetric <- "Viability"
+      fileInfo$isLowerEfficacy <- T
     })
 
     observeEvent(input$dataset, {
@@ -148,14 +108,7 @@ datasetServer <- function(id) {
         paste(input$providedDataSet, "-", Sys.Date(), ".txt", sep = "")
       },
       content = function(con) {
-        show_modal_spinner(
-          spin = "atom",
-          color = "firebrick",
-          text = "Preparing Dataset for Download..."
-        )
-        data <- readRDS(paste0(getwd(), "/www/provided_dataset/", input$providedDataSet, "_Calculated_Viabilities_for_IDACombo_shiny.rds"))
-        remove_modal_spinner()
-        write_delim(data, con, delim = "\t")
+        write_delim(preprovided_dataset[[input$providedDataSet]], con, delim = "\t")
       }
     )
 
