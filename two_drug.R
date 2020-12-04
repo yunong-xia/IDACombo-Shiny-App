@@ -429,7 +429,8 @@ twoDrugs.server <- function(id, fileInfo) {
     })
     
     plot.data <- reactive({
-      plot.data <- tableResult()[,c("Drug_1", "Drug_2", "Drug1Dose", "Drug2Dose", "Mean_Combo_Viability")]
+      name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
+      plot.data <- tableResult()[,c("Drug_1", "Drug_2", "Drug1Dose", "Drug2Dose", name_of_combo_efficacy)]
       plot.data$Group <- "Predicted Combination"
       if(fileType() == "provided"){
         #remove "(Csustained) " from the dose columns and convert these columns to numeric
@@ -446,7 +447,6 @@ twoDrugs.server <- function(id, fileInfo) {
       plot.data$Group <- factor(plot.data$Group, levels = c(paste0(plot.data$Drug_1[1], " Monotherapy"), paste0(plot.data$Drug_2[1], " Monotherapy"), "Origin", "Predicted Combination"))
       plot.data$Drug1Dose <- as.numeric(plot.data$Drug1Dose)
       plot.data$Drug2Dose <- as.numeric(plot.data$Drug2Dose)
-      name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
       plot.data[[name_of_combo_efficacy]] <- as.numeric(plot.data[[name_of_combo_efficacy]])
       plot.data[[name_of_combo_efficacy]] <- plot.data[[name_of_combo_efficacy]] * 100
       plot.data

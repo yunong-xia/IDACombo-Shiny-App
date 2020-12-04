@@ -379,6 +379,7 @@ controlPlusOne.ui <- function(id) {
     box(
       width = 9, status = "primary", solidHeader = TRUE, title = "Control Plus One Result",
       downloadButton(ns("downloadData"), "Download DataTable"),
+      downloadButton(ns('downloadPlot'), 'Download Plot(s)'),
       conditionalPanel(condition = "input.button", ns = ns, tabsetPanel(
         type = "tabs",
         tabPanel("Table", withSpinner(dataTableOutput(ns("table")))),
@@ -514,6 +515,15 @@ controlPlusOne.server <- function(id, fileInfo) {
       },
       content = function(con) {
         write_delim(result(), con, delim = "\t")
+      }
+    )
+    
+    output$downloadPlot <- downloadHandler(
+      filename = function() {
+        paste("plot(s)-", Sys.Date(), ".pdf", sep = "")
+      },
+      content = function(file) {
+        ggsave(file,plot = plot.object())
       }
     )
   })
