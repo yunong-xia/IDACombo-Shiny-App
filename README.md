@@ -31,7 +31,7 @@ devtools::install_github("Alexander-Ling/IDACombo")
 ````
 
 ## App Usage
-Data should be loaded first. The shiny app has already provided some datasets which you can load. Users can also load their custom shiny app. Instructions are on the Dataset Loader page.
+Data should be loaded first. The shiny app has already provided some datasets which you can load. Users can also load their custom dataset. Instructions are on the Dataset Loader page.
 
 Manuscript of IDACombo functionalities is available in the package. You can learn details of what those functionalities do.
 
