@@ -29,7 +29,7 @@ controlPlusOne.batch.doseInput <- function(id) {
   uiOutput(ns("doseSelect"))
 }
 
-controlPlusOne.batch.doseServer <- function(id, dataset, selectedControlTreatment) {
+controlPlusOne.batch.doseServer <- function(id, dataset, fileType, selectedControlTreatment) {
   moduleServer(id, function(input, output, session) {
     output$doseSelect <- renderUI({
       if (length(selectedControlTreatment()) > 0) {
@@ -37,6 +37,17 @@ controlPlusOne.batch.doseServer <- function(id, dataset, selectedControlTreatmen
         start <- Sys.time()
         l <- lapply(1:length(selectedControlTreatment()), function(i) {
           dose_choices <- unique(dataset()$Drug_Dose[dataset()$Drug == selectedControlTreatment()[i]])
+          if(length(fileType()) != 0 && fileType() == "provided"){
+            Csustained_conc <- as.numeric(gsub("\\(Csustained\\) ","",dose_choices[grep("\\(Csustained\\) ",dose_choices)]))
+            clean_conc <- sort(as.numeric(gsub("\\(Csustained\\) ", "", dose_choices)))
+            if(length(Csustained_conc) != 0){
+              clean_conc[match(Csustained_conc,clean_conc)] <- paste0("(Csustained) ", Csustained_conc)
+            }
+            else{
+              clean_conc <- as.character(clean_conc)
+            }
+            dose_choices <- clean_conc
+          }
           selectInput(ns(paste0("dose", i)), paste0("Select dose for Drug: ", selectedControlTreatment()[i]),
             choices = dose_choices
           )
@@ -310,7 +321,7 @@ controlPlusOne.batch.parametersInput <- function(id) {
 controlPlusOne.batch.parametersServer <- function(id, fileType) {
   moduleServer(id, function(input, output, session) {
     observeEvent(fileType(), {
-      if (fileType() == "GDSC" || fileType() == "CTRPv2") {
+      if (fileType() == "provided") {
         updateCheckboxInput(session, "isLowerEfficacy", "Lower Efficacy Is Better Drug Effect", value = TRUE)
         disable("isLowerEfficacy")
       }
@@ -338,7 +349,7 @@ controlPlusOne.batch.efficacyMetricInput <- function(id) {
 controlPlusOne.batch.efficacyMetricServer <- function(id, fileType) {
   moduleServer(id, function(input, output, session) {
     observeEvent(fileType(), {
-      if (fileType() == "GDSC" || fileType() == "CTRPv2") {
+      if (fileType() == "provided") {
         updateTextInput(session, "efficacyMetric", label = "Your Efficacy Metric Name (can be empty)", value = "Viability")
         disable("efficacyMetric")
       }
@@ -395,7 +406,7 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
 
     selectedControlTreatment <- controlPlusOne.batch.controlTreatmentServer("controlTreatmentSelection", dataset)
 
-    selectedDose <- controlPlusOne.batch.doseServer("doseSelection", dataset, selectedControlTreatment)
+    selectedDose <- controlPlusOne.batch.doseServer("doseSelection", dataset, fileType, selectedControlTreatment)
 
     selectedDrugToAdd <- controlPlusOne.batch.drugToAddServer("drugToAddSelection", dataset, selectedControlTreatment)
 

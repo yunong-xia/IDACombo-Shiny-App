@@ -252,7 +252,7 @@ testVsControl.batch.parametersInput <- function(id) {
 testVsControl.batch.parametersServer <- function(id, fileType) {
   moduleServer(id, function(input, output, session) {
     observeEvent(fileType(), {
-      if (fileType() == "GDSC" || fileType() == "CTRPv2") {
+      if (fileType() == "provided") {
         updateCheckboxInput(session, "isLowerEfficacy", "Lower Efficacy Is Better Drug Effect", value = TRUE)
         disable("isLowerEfficacy")
       }
@@ -281,7 +281,7 @@ testVsControl.batch.efficacyMetricInput <- function(id) {
 testVsControl.batch.efficacyMetricServer <- function(id, fileType) {
   moduleServer(id, function(input, output, session) {
     observeEvent(fileType(), {
-      if (fileType() == "GDSC" || fileType() == "CTRPv2") {
+      if (fileType() == "provided") {
         updateTextInput(session, "efficacyMetric", label = "Your Efficacy Metric Name (can be empty)", value = "Viability")
         disable("efficacyMetric")
       }

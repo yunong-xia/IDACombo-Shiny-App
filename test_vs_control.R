@@ -23,7 +23,7 @@ testVsControl.controlDoseInput <- function(id) {
   uiOutput(ns("controlDoseSelect"))
 }
 
-testVsControl.controlDoseServer <- function(id,dataset,selectedControlDrugs) {
+testVsControl.controlDoseServer <- function(id,dataset,fileType,selectedControlDrugs) {
   moduleServer(id, function(input,output,session) {
     output$controlDoseSelect <- renderUI({
       if(length(selectedControlDrugs()) > 0) {
@@ -32,6 +32,17 @@ testVsControl.controlDoseServer <- function(id,dataset,selectedControlDrugs) {
         for(i in 1:length(selectedControlDrugs()) ){
 
           dose_choices <- (unique(dataset()$Drug_Dose[ dataset()$Drug == selectedControlDrugs()[i] ]))
+          if(length(fileType()) != 0 && fileType() == "provided"){
+            Csustained_conc <- as.numeric(gsub("\\(Csustained\\) ","",dose_choices[grep("\\(Csustained\\) ",dose_choices)]))
+            clean_conc <- sort(as.numeric(gsub("\\(Csustained\\) ", "", dose_choices)))
+            if(length(Csustained_conc) != 0){
+              clean_conc[match(Csustained_conc,clean_conc)] <- paste0("(Csustained) ", Csustained_conc)
+            }
+            else{
+              clean_conc <- as.character(clean_conc)
+            }
+            dose_choices <- clean_conc
+          }
           output[[i]] = selectInput(ns(paste0("controlDose",i)), paste0("Select dose for Drug(Control Treatment): ",selectedControlDrugs()[i]),
                                     choices = dose_choices)
         } ## for loop
@@ -77,14 +88,24 @@ testVsControl.testDoseInput <- function(id) {
   uiOutput(ns("testDoseSelect"))
 }
 
-testVsControl.testDoseServer <- function(id,dataset,selectedTestDrugs) {
+testVsControl.testDoseServer <- function(id,dataset,fileType,selectedTestDrugs) {
   moduleServer(id, function(input,output,session) {
     output$testDoseSelect <- renderUI({
       if(length(selectedTestDrugs()) > 0) {
         ns <- session$ns
         lapply(1:length(selectedTestDrugs()), function(i) {
           dose_choices <- sort(unique(dataset()$Drug_Dose[ dataset()$Drug == selectedTestDrugs()[i] ]))
-          
+          if(length(fileType()) != 0 && fileType() == "provided"){
+            Csustained_conc <- as.numeric(gsub("\\(Csustained\\) ","",dose_choices[grep("\\(Csustained\\) ",dose_choices)]))
+            clean_conc <- sort(as.numeric(gsub("\\(Csustained\\) ", "", dose_choices)))
+            if(length(Csustained_conc) != 0){
+              clean_conc[match(Csustained_conc,clean_conc)] <- paste0("(Csustained) ", Csustained_conc)
+            }
+            else{
+              clean_conc <- as.character(clean_conc)
+            }
+            dose_choices <- clean_conc
+          }
           selectInput(ns(paste0("testDose",i)), paste0("Select dose for Drug(Test Treatment): ",selectedTestDrugs()[i]),
                       choices = dose_choices)
         })
@@ -284,7 +305,7 @@ testVsControl.parametersInput <- function(id) {
 testVsControl.parametersServer <- function(id, fileType) {
   moduleServer(id, function(input,output,session) {
     observeEvent(fileType(),{
-      if(fileType() == "GDSC" || fileType() == "CTRPv2"){
+      if(fileType() == "provided"){
         updateCheckboxInput(session, "isLowerEfficacy", "Lower Efficacy Is Better Drug Effect", value = TRUE)
         disable("isLowerEfficacy")
       }
@@ -314,7 +335,7 @@ testVsControl.efficacyMetricInput <- function(id) {
 testVsControl.efficacyMetricServer <- function(id, fileType) {
   moduleServer(id, function(input,output,session) {
     observeEvent(fileType(), {
-      if(fileType() == "GDSC" || fileType() == "CTRPv2"){
+      if(fileType() == "provided"){
         updateTextInput(session, "efficacyMetric", label = "Your Efficacy Metric Name (can be empty)", value = "Viability")
         disable("efficacyMetric")
       }
@@ -366,11 +387,11 @@ testVsControl.server <- function(id, fileInfo) {
     
     selectedControlDrugs <- testVsControl.controlDrugServer("controlDrugSelection", dataset)
     
-    selectedControlDoses <- testVsControl.controlDoseServer("controlDoseSelection", dataset, selectedControlDrugs)
+    selectedControlDoses <- testVsControl.controlDoseServer("controlDoseSelection", dataset, fileType,selectedControlDrugs)
     
     selectedTestDrugs <- testVsControl.testDrugServer("testDrugSelection", dataset)
     
-    selectedTestDoses <- testVsControl.testDoseServer("testDoseSelection", dataset, selectedTestDrugs)
+    selectedTestDoses <- testVsControl.testDoseServer("testDoseSelection", dataset, fileType, selectedTestDrugs)
     
     selectedCellLinesAndSubgroups <- testVsControl.CellLineServer("cellLineSelection",dataset)
     

@@ -38,7 +38,7 @@ introductionPage <- fluidPage(
       tags$a(
         href = "http://huang-lab.umn.edu",
         tags$img(
-          src = "huang_lab_icon.png",
+          src = "image/huang_lab_icon.png",
           align = "center",
           width = "100%",
           height = "auto"

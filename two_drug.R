@@ -15,6 +15,7 @@ twoDrugs.drugServer <- function(id, dataset) { #dataset is a reactive value
       updateSelectInput(session,"drug2",label = "Drug 2", choices = drug_choices)
     })
     
+    
     list(d1 = reactive(input$drug1),
          d2 = reactive(input$drug2))
     
@@ -179,14 +180,10 @@ twoDrugs.doseInput <- function(id) {
   )
 }
 
-twoDrugs.doseServer <- function(id, dataset, selectedDrug1, selectedDrug2, selectedSharedCellLines) {
-  stopifnot(is.reactive(dataset))
-  stopifnot(is.reactive(selectedDrug1))
-  stopifnot(is.reactive(selectedDrug2))
-  stopifnot(is.reactive(selectedSharedCellLines))
+twoDrugs.doseServer <- function(id, dataset, fileType,selectedDrug1, selectedDrug2, selectedSharedCellLines) {
   moduleServer(id, function(input,output,session) {
     
-    observeEvent(c(dataset(), selectedDrug1(), selectedDrug2(), selectedSharedCellLines()),{
+    observeEvent(c(dataset(), fileType(),selectedDrug1(), selectedDrug2(), selectedSharedCellLines()),{
       data <- dataset()
       drug1 <- selectedDrug1()
       drug2 <- selectedDrug2()
@@ -194,6 +191,27 @@ twoDrugs.doseServer <- function(id, dataset, selectedDrug1, selectedDrug2, selec
       
       dose1_choices <- sort(unique(data$Drug_Dose[data$Drug == drug1 & data$Cell_Line %in% shared_cls]))
       dose2_choices <- sort(unique(data$Drug_Dose[data$Drug == drug2 & data$Cell_Line %in% shared_cls]))
+      
+      if(length(fileType()) != 0 && fileType() == "provided"){
+        Csustained_conc1 <- as.numeric(gsub("\\(Csustained\\) ","",dose1_choices[grep("\\(Csustained\\) ",dose1_choices)]))
+        Csustained_conc2 <- as.numeric(gsub("\\(Csustained\\) ","",dose2_choices[grep("\\(Csustained\\) ",dose2_choices)]))
+        clean_conc1 <- sort(as.numeric(gsub("\\(Csustained\\) ", "", dose1_choices)))
+        clean_conc2 <- sort(as.numeric(gsub("\\(Csustained\\) ", "", dose2_choices)))
+        if(length(Csustained_conc1) != 0){
+          clean_conc1[match(Csustained_conc1,clean_conc1)] <- paste0("(Csustained) ", Csustained_conc1)
+        }
+        else{
+          clean_conc1 <- as.character(clean_conc1)
+        }
+        if(length(Csustained_conc2) != 0){
+          clean_conc2[match(Csustained_conc2,clean_conc2)] <- paste0("(Csustained) ", Csustained_conc2)
+        }
+        else{
+          clean_conc2 <- as.character(clean_conc2)
+        }
+        dose1_choices <- clean_conc1
+        dose2_choices <- clean_conc2
+      }
       
       updatePickerInput(session, inputId = "dose1", label = "Drug dose available for drug 1 (Multiple)",
                         choices = dose1_choices)
@@ -259,7 +277,7 @@ twoDrugs.parametersInput <- function(id) {
 twoDrugs.parametersServer <- function(id, fileType) {
   moduleServer(id, function(input,output,session) {
     observeEvent(fileType(),{
-      if(fileType() == "GDSC" || fileType() == "CTRPv2"){
+      if(fileType() == "provided"){
         updateCheckboxInput(session, "isLowerEfficacy", "Lower Efficacy Is Better Drug Effect", value = TRUE)
         disable("isLowerEfficacy")
       }
@@ -287,7 +305,7 @@ twoDrugs.efficacyMetricServer <- function(id, fileType) {
   moduleServer(id, function(input,output,session) {
     
     observeEvent(fileType(), {
-      if(fileType() == "GDSC" || fileType() == "CTRPv2"){
+      if(fileType() =="provided"){
         updateTextInput(session, "efficacyMetric", label = "Your Efficacy Metric Name (can be empty)", value = "Viability")
         disable("efficacyMetric")
       }
@@ -353,7 +371,7 @@ twoDrugs.server <- function(id, fileInfo) {
     
     selectedSubgroups <- selectedCellLinesAndSubgroups$subgroups
     
-    selectedDose <- twoDrugs.doseServer("doseSelection", dataset, selectedDrugs$d1, selectedDrugs$d2, selectedCellLines)
+    selectedDose <- twoDrugs.doseServer("doseSelection", dataset, fileType, selectedDrugs$d1, selectedDrugs$d2, selectedCellLines)
     
     checkedParameters <- twoDrugs.parametersServer("parametersCheck",fileType)
     
@@ -413,6 +431,12 @@ twoDrugs.server <- function(id, fileInfo) {
     plot.data <- reactive({
       plot.data <- tableResult()[,c("Drug_1", "Drug_2", "Drug1Dose", "Drug2Dose", "Mean_Combo_Viability")]
       plot.data$Group <- "Predicted Combination"
+      if(fileType() == "provided"){
+        #remove "(Csustained) " from the dose columns and convert these columns to numeric
+        # in order to label the x and y axis.
+        plot.data$Drug1Dose <- as.numeric(gsub("\\(Csustained\\) ", "", plot.data$Drug1Dose))
+        plot.data$Drug2Dose <- as.numeric(gsub("\\(Csustained\\) ", "", plot.data$Drug2Dose))
+      }
       plot.data$Group[plot.data$Drug1Dose == 0] <- paste0(plot.data$Drug_2[1], " Monotherapy")
       plot.data$Group[plot.data$Drug2Dose == 0] <- paste0(plot.data$Drug_1[1], " Monotherapy")
       to.add <- as.data.frame(matrix(c(rep(0, ncol(plot.data)-1), "Origin"), ncol = ncol(plot.data)))

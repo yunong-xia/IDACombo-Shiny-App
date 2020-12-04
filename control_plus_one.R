@@ -29,13 +29,24 @@ controlPlusOne.doseInput <- function(id) {
   uiOutput(ns("doseSelect"))
 }
 
-controlPlusOne.doseServer <- function(id, dataset, selectedControlTreatment) {
+controlPlusOne.doseServer <- function(id, dataset, fileType, selectedControlTreatment) {
   moduleServer(id, function(input, output, session) {
     output$doseSelect <- renderUI({
       if (length(selectedControlTreatment()) > 0) {
         ns <- session$ns
         l <- lapply(1:length(selectedControlTreatment()), function(i) {
-          dose_choices <- unique(dataset()$Drug_Dose[dataset()$Drug == selectedControlTreatment()[i]])
+          dose_choices <- sort(unique(dataset()$Drug_Dose[dataset()$Drug == selectedControlTreatment()[i]]))
+          if(length(fileType()) != 0 && fileType() == "provided"){
+            Csustained_conc <- as.numeric(gsub("\\(Csustained\\) ","",dose_choices[grep("\\(Csustained\\) ",dose_choices)]))
+            clean_conc <- sort(as.numeric(gsub("\\(Csustained\\) ", "", dose_choices)))
+            if(length(Csustained_conc) != 0){
+              clean_conc[match(Csustained_conc,clean_conc)] <- paste0("(Csustained) ", Csustained_conc)
+            }
+            else{
+              clean_conc <- as.character(clean_conc)
+            }
+            dose_choices <- clean_conc
+          }
           selectInput(ns(paste0("dose", i)), paste0("Select dose for Drug: ", selectedControlTreatment()[i]),
             choices = dose_choices
           )
@@ -47,7 +58,7 @@ controlPlusOne.doseServer <- function(id, dataset, selectedControlTreatment) {
     # return a vector of selected drug doses
     reactive({
       lapply(1:length(selectedControlTreatment()), function(i) {
-        (input[[paste0("dose", i)]])
+        input[[paste0("dose", i)]]
       }) %>%
         unlist()
     })
@@ -303,7 +314,7 @@ controlPlusOne.parametersInput <- function(id) {
 controlPlusOne.parametersServer <- function(id, fileType) {
   moduleServer(id, function(input, output, session) {
     observeEvent(fileType(), {
-      if (fileType() == "GDSC" || fileType() == "CTRPv2") {
+      if (fileType() == "provided") {
         updateCheckboxInput(session, "isLowerEfficacy", "Lower Efficacy Is Better Drug Effect", value = TRUE)
         disable("isLowerEfficacy")
       }
@@ -334,7 +345,7 @@ controlPlusOne.efficacyMetricInput <- function(id) {
 controlPlusOne.efficacyMetricServer <- function(id, fileType) {
   moduleServer(id, function(input, output, session) {
     observeEvent(fileType(), {
-      if (fileType() == "GDSC" || fileType() == "CTRPv2") {
+      if (fileType() == "provided") {
         updateTextInput(session, "efficacyMetric", label = "Your Efficacy Metric Name (can be empty)", value = "Viability")
         disable("efficacyMetric")
       }
@@ -387,7 +398,7 @@ controlPlusOne.server <- function(id, fileInfo) {
 
     selectedControlTreatment <- controlPlusOne.controlTreatmentServer("controlTreatmentSelection", dataset)
 
-    selectedDose <- controlPlusOne.doseServer("doseSelection", dataset, selectedControlTreatment)
+    selectedDose <- controlPlusOne.doseServer("doseSelection", dataset, fileType, selectedControlTreatment)
 
     selectedDrugToAdd <- controlPlusOne.drugToAddServer("drugToAddSelection", dataset, selectedControlTreatment)
 
@@ -459,7 +470,9 @@ controlPlusOne.server <- function(id, fileInfo) {
     
     plot.object <- eventReactive(input$button,{
       res <- result()
-      
+      if(fileType() == "provided"){
+        res$Drug_to_Add_Dose <- as.numeric(gsub("\\(Csustained\\) ", "", res$Drug_to_Add_Dose))
+      }
       p1 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$Mean_Combo_Viability)) +
         xlab("Drug to Add Dose") + ylab("Mean Combo Viability")
       if(checkedParameters$uncertainty()){

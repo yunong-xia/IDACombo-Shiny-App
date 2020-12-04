@@ -25,7 +25,8 @@ datasetInput <- function(id) {
           accept = c(
             "text/csv",
             "text/comma-separated-values,text/plain",
-            ".csv"
+            ".csv",
+            ".tsv"
           )
         )
       ),
@@ -33,7 +34,7 @@ datasetInput <- function(id) {
         "Preprovided Dataset",
         selectInput(
           ns("providedDataSet"), "Choose a preprovided dataset:",
-          c("GDSC", "CTRPv2")
+          c("GDSC1", "GDSC2","CTRPv2","PRISM Repurposing")
         ),
         actionButton(ns("button"), "Load"),
         hr(),
@@ -54,21 +55,37 @@ datasetServer <- function(id) {
       show_modal_spinner(
         spin = "self-building-square",
         color = "firebrick",
-        text = "Please wait..."
+        text = "Loading Dataset..."
       )
-      if (input$providedDataSet == "GDSC") {
-        # should be modified if the location of the file changes.
-        GDSC_Data_path <- paste0(getwd(), "/provided_dataset/GDSC_Data.rds")
-        fileInfo$dataset <- readRDS(GDSC_Data_path)
+      #first, clean the memory
+      fileInfo$dataset <- NULL
+      if (input$providedDataSet == "GDSC1") {
+        # The path of the data should be modified if the location of the file changes.
+        data_path <- paste0(getwd(), "/www/provided_dataset/GDSC1_Calculated_Viabilities_for_IDACombo_shiny.rds")
+        fileInfo$dataset <- readRDS(data_path)
         fileInfo$extraCol <- c("seCol", "subCol")
-        fileInfo$type <- "GDSC"
+        fileInfo$type <- "provided"
+      }
+      if (input$providedDataSet == "GDSC2") {
+        # The path of the data should be modified if the location of the file changes.
+        data_path <- paste0(getwd(), "/www/provided_dataset/GDSC1_Calculated_Viabilities_for_IDACombo_shiny.rds")
+        fileInfo$dataset <- readRDS(data_path)
+        fileInfo$extraCol <- c("seCol", "subCol")
+        fileInfo$type <- "provided"
       }
       if (input$providedDataSet == "CTRPv2") {
-        # should be modified if the location of the file changes.
-        CTRPv2_Data_path <- paste0(getwd(), "/provided_dataset/CTRPv2_Data.rds")
-        fileInfo$dataset <- readRDS(CTRPv2_Data_path)
+        # The path of the data should be modified if the location of the file changes.
+        data_path <- paste0(getwd(), "/www/provided_dataset/CTRPv2_Calculated_Viabilities_for_IDACombo_shiny.rds")
+        fileInfo$dataset <- readRDS(data_path)
         fileInfo$extraCol <- c("seCol", "subCol")
-        fileInfo$type <- "CTRPv2"
+        fileInfo$type <- "provided"
+      }
+      if (input$providedDataSet == "PRISM Repurposing") {
+        # The path of the data should be modified if the location of the file changes.
+        data_path <- paste0(getwd(), "/www/provided_dataset/PRISM_Repurposing_Calculated_Viabilities_for_IDACombo_shiny.rds")
+        fileInfo$dataset <- readRDS(data_path)
+        fileInfo$extraCol <- c("seCol", "subCol")
+        fileInfo$type <- "provided"
       }
       remove_modal_spinner()
     })
