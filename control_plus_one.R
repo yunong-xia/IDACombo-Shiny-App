@@ -380,10 +380,12 @@ controlPlusOne.ui <- function(id) {
       width = 9, status = "primary", solidHeader = TRUE, title = "Control Plus One Result",
       downloadButton(ns("downloadData"), "Download DataTable"),
       downloadButton(ns('downloadPlot'), 'Download Plot(s)'),
+      downloadButton(ns('downloadLog'), 'Download Log File'),
       conditionalPanel(condition = "input.button", ns = ns, tabsetPanel(
         type = "tabs",
         tabPanel("Table", withSpinner(dataTableOutput(ns("table")))),
-        tabPanel("Plot", withSpinner(plotOutput(ns("plot"),  width = "100%", height = "400px")))
+        tabPanel("Plot", withSpinner(plotOutput(ns("plot"),  width = "100%", height = "400px"))),
+        tabPanel('Log', withSpinner(verbatimTextOutput(ns('log'))))
       ))
     )
   )
@@ -415,10 +417,14 @@ controlPlusOne.server <- function(id, fileInfo) {
 
     efficacyMetric <- controlPlusOne.efficacyMetricServer("efficacyMetric", fileType)
 
+    warningMessage <- reactiveVal(NULL)
+    
+    output$log <- renderText({
+      warningMessage()
+    })
 
 
-
-    result <- eventReactive(input$button, {
+    tableResult <- eventReactive(input$button, {
       validate(
         need(!is.null(dataset()), "Please upload your data"),
         need(!is.null(selectedControlTreatment()), "Please select control treatment"),
@@ -458,19 +464,64 @@ controlPlusOne.server <- function(id, fileInfo) {
         Cell_Lines_Used = paste(res_list$Cell_Lines_Used, collapse = ", "),
         res_list[[1]]
       )
+      
+      
+      warning_msg <- ""
+      res <- withCallingHandlers(
+        tryCatch(
+          expr = {
+            res_list <- IDAPredict.ControlPlusOne(
+              Monotherapy_Data = dataset(),
+              Cell_Line_Name_Column = "Cell_Line",
+              Drug_Name_Column = "Drug",
+              Drug_Concentration_Column = "Drug_Dose",
+              Efficacy_Column = "Efficacy",
+              LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
+              Efficacy_Metric_Name = efficacyMetric(),
+              Control_Treatment_Drugs = selectedControlTreatment(),
+              Control_Treatment_Drug_Concentrations = selectedDose(),
+              Drug_to_Add = selectedDrugToAdd(),
+              Calculate_Uncertainty = checkedParameters$uncertainty(),
+              Efficacy_SE_Column = eff_se_col,
+              n_Simulations = nSim(),
+              Calculate_IDAcomboscore_And_Hazard_Ratio = checkedParameters$comboscore(),
+              Average_Duplicate_Records = checkedParameters$averageDuplicate()
+            )
+            if(!is.data.frame(res_list[[1]])){
+              NULL
+            } else{
+              res <- cbind(
+                Control_Treatment = res_list$Control_Treatment,
+                Drug_to_Add = res_list$Drug_to_Add,
+                Number_of_Cell_Lines_Used = length(res_list$Cell_Lines_Used),
+                Cell_Lines_Used = paste(res_list$Cell_Lines_Used, collapse = ", "),
+                res_list[[1]]
+              )
+              res
+            }
+          }),
+        warning = function(w) {
+          warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+          invokeRestart("muffleWarning")
+        }
+      )
+      if(nchar(warning_msg) == 0)
+        warning_msg <- "No warning messages"
+      warningMessage(warning_msg)
+      return(res)
     })
 
     output$table <- DT::renderDataTable(
       {
-        if (!is.null(result())) {
-          result()[, names(result()) != "Cell_Lines_Used"]
+        if (!is.null(tableResult())) {
+          tableResult()[, names(tableResult()) != "Cell_Lines_Used"]
         }
       },
       options = list(scrollX = TRUE)
     )
     
     plot.object <- eventReactive(input$button,{
-      res <- result()
+      res <- tableResult()
       name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
       if(fileType() == "provided"){
         res$Drug_to_Add_Dose <- as.numeric(gsub("\\(Csustained\\) ", "", res$Drug_to_Add_Dose))
@@ -526,5 +577,16 @@ controlPlusOne.server <- function(id, fileInfo) {
         ggsave(file,plot = plot.object())
       }
     )
+    
+    output$downloadLog <- downloadHandler(
+      filename = function() {
+        paste('log-', Sys.Date(), '.txt', sep='')
+      },
+      content = function(file) {
+        write(warningMessage(), file)
+      }
+    )
+    
+    
   })
 }

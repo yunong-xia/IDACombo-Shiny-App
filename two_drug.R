@@ -343,10 +343,11 @@ twoDrugs.ui <- function(id) {
     box(width = 9, status = "primary", solidHeader = TRUE, title="2Drug Result",
         downloadButton(ns('downloadData'), 'Download DataTable'),
         downloadButton(ns('downloadPlot'), 'Download 3D Plot'),
-        
+        downloadButton(ns('downloadLog'), 'Download Log File'),
         conditionalPanel(condition = "input.button",ns = ns, tabsetPanel(type = "tabs",
                                                                          tabPanel("Table", withSpinner(dataTableOutput(ns("table")))),
-                                                                         tabPanel("3dPlot", withSpinner(rglwidgetOutput(ns("plot"),  width = 400, height = 400))))  
+                                                                         tabPanel("3dPlot", withSpinner(rglwidgetOutput(ns("plot"),  width = 400, height = 400))),
+                                                                         tabPanel('Log', withSpinner(verbatimTextOutput(ns('log')))))  
         )
     )
     
@@ -379,6 +380,14 @@ twoDrugs.server <- function(id, fileInfo) {
     
     efficacyMetric <- twoDrugs.efficacyMetricServer("efficacyMetric", fileType)
     
+    warningMessage <- reactiveVal(NULL)
+    
+    
+    
+    output$log <- renderText({
+      warningMessage()
+    })
+    
     tableResult <- eventReactive(input$button, {
 
       validate(
@@ -404,28 +413,46 @@ twoDrugs.server <- function(id, fileInfo) {
       else
         eff_se_col = NULL
       
-      res_list <- IDAPredict.2drug(
-        Monotherapy_Data = select,
-        Cell_Line_Name_Column = "Cell_Line",
-        Drug_Name_Column = "Drug",
-        Drug_Concentration_Column = "Drug_Dose",
-        Efficacy_Column = "Efficacy",
-        LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEff(),
-        Efficacy_Metric_Name = efficacyMetric(),
-        Drug1 = selectedDrugs$d1(),
-        Drug2 = selectedDrugs$d2(),
-        Calculate_Uncertainty = checkedParameters$uncertainty(),
-        Efficacy_SE_Column = eff_se_col,
-        n_Simulations = nSim(),
-        Calculate_IDAcomboscore_And_Hazard_Ratio = checkedParameters$comboscore(),
-        Average_Duplicate_Records = checkedParameters$averageDuplicate()
+      warning_msg <- ""
+      res <- withCallingHandlers(
+        tryCatch(
+          expr = {
+            res_list <- IDAPredict.2drug(
+              Monotherapy_Data = select,
+              Cell_Line_Name_Column = "Cell_Line",
+              Drug_Name_Column = "Drug",
+              Drug_Concentration_Column = "Drug_Dose",
+              Efficacy_Column = "Efficacy",
+              LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEff(),
+              Efficacy_Metric_Name = efficacyMetric(),
+              Drug1 = selectedDrugs$d1(),
+              Drug2 = selectedDrugs$d2(),
+              Calculate_Uncertainty = checkedParameters$uncertainty(),
+              Efficacy_SE_Column = eff_se_col,
+              n_Simulations = nSim(),
+              Calculate_IDAcomboscore_And_Hazard_Ratio = checkedParameters$comboscore(),
+              Average_Duplicate_Records = checkedParameters$averageDuplicate()
+            )
+            if(!is.data.frame(res_list[[1]])){
+              NULL
+            } else{
+              res_dataframe <- res_list[[1]]
+              res <- cbind(Drug_1 = res_list[[2]],
+                           Drug_2 = res_list[[3]],
+                           Numbers_of_Used_Cell_Lines = length(res_list[[4]]),
+                           res_dataframe)
+              res
+            }
+          }),
+        warning = function(w) {
+          warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+          invokeRestart("muffleWarning")
+        }
       )
-      res_dataframe <- res_list[[1]]
-      cbind(Drug_1 = res_list[[2]],
-            Drug_2 = res_list[[3]],
-            Numbers_of_Used_Cell_Lines = length(res_list[[4]]),
-            res_dataframe)
-
+      if(nchar(warning_msg) == 0)
+        warning_msg <- "No warning messages"
+      warningMessage(warning_msg)
+      return(res)
     })
     
     plot.data <- reactive({
@@ -516,6 +543,16 @@ twoDrugs.server <- function(id, fileInfo) {
         htmlwidgets::saveWidget(rglScene(), con,selfcontained = TRUE)
       }
     )
+    
+    output$downloadLog <- downloadHandler(
+      filename = function() {
+        paste('log-', Sys.Date(), '.txt', sep='')
+      },
+      content = function(file) {
+        write(warningMessage(), file)
+      }
+    )
+    
   })
 }
 

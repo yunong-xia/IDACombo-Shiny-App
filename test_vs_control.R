@@ -368,9 +368,10 @@ testVsControl.ui <- function(id) {
     ),
     box(width = 9, status = "primary", solidHeader = TRUE, title="Test VS Control Result",
         downloadButton(ns('downloadData'), 'Download DataTable'),
-        
+        downloadButton(ns('downloadLog'), 'Download Log File'),
         conditionalPanel(condition = "input.button",ns = ns, tabsetPanel(type = "tabs",
-                                                                         tabPanel("Table", withSpinner(DT::dataTableOutput(ns("result")))))  
+                                                                         tabPanel("Table", withSpinner(DT::dataTableOutput(ns("result")))),
+                                                                         tabPanel('Log', withSpinner(verbatimTextOutput(ns('log')))))  
         )
     )
   )
@@ -405,7 +406,13 @@ testVsControl.server <- function(id, fileInfo) {
     
     efficacyMetric <- testVsControl.efficacyMetricServer("efficacyMetric", fileType)
     
-    result <- eventReactive(input$button, {
+    warningMessage <- reactiveVal(NULL)
+    
+    output$log <- renderText({
+      warningMessage()
+    })
+    
+    tableResult <- eventReactive(input$button, {
       validate(
         need(!is.null(dataset()), "Please upload your data"),
         need(!is.null(selectedControlDrugs()), "Please select control treatment drugs"),
@@ -422,38 +429,59 @@ testVsControl.server <- function(id, fileInfo) {
         eff_se_col = "Efficacy_SE"
       else
         eff_se_col = NULL
+
       
-      res_list <- IDAPredict.TestvsControl(
-        Monotherapy_Data = monotherapy_data,
-        Cell_Line_Name_Column = "Cell_Line",
-        Drug_Name_Column = "Drug",
-        Drug_Concentration_Column = "Drug_Dose",
-        Efficacy_Column = "Efficacy",
-        LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
-        Efficacy_Metric_Name = efficacyMetric(),
-        Control_Treatment_Drugs = selectedControlDrugs(),
-        Control_Treatment_Drug_Concentrations = selectedControlDoses(),
-        Test_Treatment_Drugs = selectedTestDrugs(),
-        Test_Treatment_Drug_Concentrations = selectedTestDoses(),
-        Calculate_Uncertainty = checkedParameters$uncertainty(),
-        Efficacy_SE_Column = eff_se_col,
-        n_Simulations = nSim(),
-        Calculate_Hazard_Ratio = checkedParameters$hazardRatio(),
-        Average_Duplicate_Records = checkedParameters$averageDuplicate()
+      warning_msg <- ""
+      res <- withCallingHandlers(
+        tryCatch(
+          expr = {
+            res_list <- IDAPredict.TestvsControl(
+              Monotherapy_Data = monotherapy_data,
+              Cell_Line_Name_Column = "Cell_Line",
+              Drug_Name_Column = "Drug",
+              Drug_Concentration_Column = "Drug_Dose",
+              Efficacy_Column = "Efficacy",
+              LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
+              Efficacy_Metric_Name = efficacyMetric(),
+              Control_Treatment_Drugs = selectedControlDrugs(),
+              Control_Treatment_Drug_Concentrations = selectedControlDoses(),
+              Test_Treatment_Drugs = selectedTestDrugs(),
+              Test_Treatment_Drug_Concentrations = selectedTestDoses(),
+              Calculate_Uncertainty = checkedParameters$uncertainty(),
+              Efficacy_SE_Column = eff_se_col,
+              n_Simulations = nSim(),
+              Calculate_Hazard_Ratio = checkedParameters$hazardRatio(),
+              Average_Duplicate_Records = checkedParameters$averageDuplicate()
+            )
+            if(!is.data.frame(res_list[[1]])){
+              NULL
+            } else{
+              res <- cbind(Control_Treatment_Drugs = paste(res_list$Control_Treatment$Control_Treatment_Drugs, collapse = ", "), 
+                           Control_Treatment_Drug_Concentration = paste(res_list$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
+                           Test_Treatment_Drugs = paste(res_list$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
+                           Test_Treatment_Drugs_Concentrations = paste(res_list$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
+                           Number_of_Cell_Lines_Used = length(res_list$Cell_Lines_Used),
+                           Cell_Lines_Used = paste(res_list$Cell_Lines_Used, collapse = ", "),
+                           res_list[[1]])
+              res
+            }
+          }),
+        warning = function(w) {
+          warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+          invokeRestart("muffleWarning")
+        }
       )
+      if(nchar(warning_msg) == 0)
+        warning_msg <- "No warning messages"
+      warningMessage(warning_msg)
+      return(res)
       
-      res <- cbind(Control_Treatment_Drugs = paste(res_list$Control_Treatment$Control_Treatment_Drugs, collapse = ", "), 
-                   Control_Treatment_Drug_Concentration = paste(res_list$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
-                   Test_Treatment_Drugs = paste(res_list$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
-                   Test_Treatment_Drugs_Concentrations = paste(res_list$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
-                   Number_of_Cell_Lines_Used = length(res_list$Cell_Lines_Used),
-                   Cell_Lines_Used = paste(res_list$Cell_Lines_Used, collapse = ", "),
-                   res_list[[1]])
+      
     })
     
     output$result <- renderDataTable({
-      if(!is.null(result()))
-        result()[, names(result()) != "Cell_Lines_Used"]
+      if(!is.null(tableResult()))
+        tableResult()[, names(tableResult()) != "Cell_Lines_Used"]
       },options = list(scrollX = TRUE))
     
     output$downloadData <- downloadHandler(

@@ -247,7 +247,6 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     # compute result and generate some message
     warningMessage <- reactiveVal(NULL)
     
-    tableResult <- reactiveVal(NULL)
     
     output$log <- renderText({
        warningMessage()
@@ -276,8 +275,8 @@ twoDrugs.batch.server <- function(id, fileInfo) {
       }
     )
     
-    
-    observeEvent(input$button_batch,{
+    #Calculate IDACombo result.
+    tableResult <- eventReactive(input$button_batch,{
       validate(
         need(!is.null(dataset()), "Please upload your data"),
         need(!is.null(selectedDrugs()), "Please select drugs"),
@@ -342,7 +341,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
       if(nchar(warning_msg) == 0)
         warning_msg <- "No warning messages"
       warningMessage(warning_msg)
-      tableResult(rbindlist(res_list))
+      return(rbindlist(res_list))
     })
 
   })
