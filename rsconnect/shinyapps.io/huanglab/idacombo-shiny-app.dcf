@@ -5,6 +5,6 @@ account: huanglab
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 3164654
-bundleId: 3944181
+bundleId: 3945851
 url: https://huanglab.shinyapps.io/idacombo-shiny-app/
-when: 1607104835.70967
+when: 1607134347.28295

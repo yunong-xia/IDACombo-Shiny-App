@@ -112,11 +112,11 @@ testVsControlPage <- fluidPage(
   )
 )
 
-batchTestVsControlPage <- fluidPage(
-  fluidRow(
-    testVsControl.batch.ui("testVsControlBatch")
-  )
-)
+# batchTestVsControlPage <- fluidPage(
+#   fluidRow(
+#     testVsControl.batch.ui("testVsControlBatch")
+#   )
+# )
 
 citationPage <- fluidPage(
   h3("If you use this resource for your research, please cite us, along with the original creators of any datasets you use from Simplicity."),
@@ -170,11 +170,11 @@ body <- dashboardBody(
             batchControlPlusOnePage),
     
     #Test Vs Control
-    tabItem(tabName = "onlyOnePair",
+    tabItem(tabName = "testVsControl",
             testVsControlPage),
-    tabItem(tabName = "testVsControlBatch",
-            batchTestVsControlPage),
-    
+    # tabItem(tabName = "testVsControlBatch",
+    #         batchTestVsControlPage),
+    # 
     #About This App
     tabItem(tabName = "citation",
             citationPage)
