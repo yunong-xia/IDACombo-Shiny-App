@@ -63,11 +63,19 @@ datasetServer <- function(id) {
     fileInfo <- reactiveValues(dataset = NULL, extraCol = NULL, type = NULL, efficacyMetric = NULL, isLowerEfficacy = F)
 
     observeEvent(input$button, {
+      show_modal_spinner(
+        spin = "atom",
+        color = "firebrick",
+        text = "Loading dataset..."
+      )
+      Sys.sleep(1.2)
       fileInfo$dataset <- preprovided_dataset[[input$providedDataSet]]
       fileInfo$extraCol <- c("seCol", "subCol")
       fileInfo$type <- "provided"
       fileInfo$efficacyMetric <- "Viability"
       fileInfo$isLowerEfficacy <- T
+      
+      remove_modal_spinner()
     })
 
     observeEvent(input$dataset, {
@@ -78,7 +86,7 @@ datasetServer <- function(id) {
       show_modal_spinner(
         spin = "atom",
         color = "firebrick",
-        text = "Please wait..."
+        text = "Loading dataset..."
       )
       content <- read.delim(input$dataset$datapath)
       remove_modal_spinner()
@@ -108,24 +116,30 @@ datasetServer <- function(id) {
         paste(input$providedDataSet, "-", Sys.Date(), ".txt", sep = "")
       },
       content = function(con) {
+        show_modal_spinner(
+          spin = "atom",
+          color = "firebrick",
+          text = "Preparing dataset for download..."
+        )
         write_delim(preprovided_dataset[[input$providedDataSet]], con, delim = "\t")
+        remove_modal_spinner()
       }
     )
 
     output$sampleFile <- downloadHandler(
       filename = function() {
-        "Sample-Input.xlsx"
+        "Sample-Input.tsv"
       },
       content = function(file) {
         df <- data.frame(
-          Drug = paste0("drug", c(1, 2, 3)),
-          Drug_Dose = runif(3, 0, 2),
-          Cell_Line = paste0("cell_line", c(1, 2, 3)),
-          Efficacy = runif(3, 0, 1),
-          Efficacy_SE = runif(3, 0, 0.1),
-          Cell_Line_Subgroup = paste0("group", c("A", "A", "B"))
+          Drug = paste0("drug", c(1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2)),
+          Drug_Dose = c(0,1,10,0,1,10,0,1,10,0,10,100,0,10,100,0,10,90),
+          Cell_Line = rep(paste0("cell_line", c(1,1,1,2,2,2,3,3,3)), 2),
+          Efficacy = c(1,0.9,0.2,1,0.2,0.15,1.01,0.98,0.99,1.2,0.8,0.9,1,0.9,0.8,1,1,1),
+          Efficacy_SE = runif(18, 0, 0.1),
+          Cell_Line_Subgroup = rep(paste0("group", c("A", "A", "A", "A", "A", "A", "B", "B", "B")), 2)
         )
-        write.xlsx(df, file)
+        write.table(df, file, sep = "\t", col.names = TRUE, row.names = FALSE, quote = FALSE)
       }
     )
 

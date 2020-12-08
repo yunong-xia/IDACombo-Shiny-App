@@ -43,4 +43,4 @@ preprovided_dataset <- list(
   readRDS(paste0(getwd(), "/www/provided_dataset/PRISM_Repurposing_Calculated_Viabilities_for_IDACombo_shiny.rds"))
 )
 
-names(preprovided_dataset) <- c("GDSC1","GDSC2","CTRPv2","PRISM_Repurposing")
+names(preprovided_dataset) <- c("GDSC1","GDSC2","CTRPv2","PRISM Repurposing")
