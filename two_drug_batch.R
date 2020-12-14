@@ -6,7 +6,8 @@ twoDrugs.batch.drugInput <- function(id) {
   ns <- NS(id)
   pickerInput(ns("drugs_batch"),"Select Drugs for Combinations (Multiple)",
               choices = NULL,
-              options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE),
+              options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE,
+                             `max_options` = 10),
               multiple = T)
 }
 
@@ -221,26 +222,13 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     
     nSim <- checkedParameters$nSim
 
-
-    # compute result and generate some message
-    warningMessage <- reactiveVal(NULL)
-    
-    
-    output$log <- renderText({
-       warningMessage()
-    })
-    
-    output$table <- renderDataTable({
-        tableResult()[, names(tableResult()) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
-      },
-      options = list(scrollX = TRUE))
     
     output$downloadData <- downloadHandler(
       filename = function() {
         paste('data-', Sys.Date(), '.txt', sep='')
       },
       content = function(file) {
-        write_delim(tableResult(), file, delim = "\t")
+        write_delim(computationResult(), file, delim = "\t")
       }
     )
     
@@ -253,12 +241,20 @@ twoDrugs.batch.server <- function(id, fileInfo) {
       }
     )
     
+    
     #Calculate IDACombo result.
-    tableResult <- eventReactive(input$button_batch,{
+    computationResult <- eventReactive(input$button_batch,{
       validate(
         need(!is.null(dataset()), "Please upload your data"),
         need(!is.null(selectedDrugs()), "Please select drugs"),
         need(!is.null(selectedCellLines()), "Please select Cell lines")
+      )
+      
+      
+      show_modal_spinner(
+        spin = "semipolar",
+        color = "#112446",
+        text = "Calculating Efficacy"
       )
       selected_drug <- selectedDrugs()
       pairs <- lapply(1:(length(selected_drug)-1), function(i){
@@ -271,10 +267,22 @@ twoDrugs.batch.server <- function(id, fileInfo) {
       else
         eff_se_col = NULL
       
-      warning_msg <- ""
-      res_list <- vector("list", length = length(pairs))
+      isLowerEfficacy <- checkedParameters$isLowerEfficacy()
+      efficacyMetric <- efficacyMetric()
+      uncertainty <- checkedParameters$uncertainty()
+      nSim <- nSim()
+      comboscore <- checkedParameters$comboscore()
+      averageDuplicate <- checkedParameters$averageDuplicate()
       monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines(),]
-      withProgress(message = "Computing...", value = 0, {
+      
+      progress <- AsyncProgress$new(session, min = 0, max = nrow(pairs), message = "Initializing Calculation......")
+      future_result <- future(
+        global = c("isLowerEfficacy","efficacyMetric","uncertainty","nSim","comboscore","averageDuplicate","monotherapy_data","progress", "eff_se_col", "pairs"),
+        packages =c("IDACombo","data.table"),
+        seed = T,
+        expr = {
+        warning_msg <- ""
+        res_list <- vector("list", length = length(pairs))
         for(i in 1:nrow(pairs)) {
           #get mono data
           res_list[[i]] <- withCallingHandlers(
@@ -286,15 +294,15 @@ twoDrugs.batch.server <- function(id, fileInfo) {
                   Drug_Name_Column = "Drug",
                   Drug_Concentration_Column = "Drug_Dose",
                   Efficacy_Column = "Efficacy",
-                  LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
-                  Efficacy_Metric_Name = efficacyMetric(),
+                  LowerEfficacyIsBetterDrugEffect = isLowerEfficacy,
+                  Efficacy_Metric_Name = efficacyMetric,
                   Drug1 = as.character(pairs[i,1]),
                   Drug2 = as.character(pairs[i,2]),
-                  Calculate_Uncertainty = checkedParameters$uncertainty(),
+                  Calculate_Uncertainty = uncertainty,
                   Efficacy_SE_Column = eff_se_col,
-                  n_Simulations = nSim(),
-                  Calculate_IDAcomboscore_And_Hazard_Ratio = checkedParameters$comboscore(),
-                  Average_Duplicate_Records = checkedParameters$averageDuplicate()
+                  n_Simulations = nSim,
+                  Calculate_IDAcomboscore_And_Hazard_Ratio = comboscore,
+                  Average_Duplicate_Records = averageDuplicate
                 )
                 if(!is.data.frame(res[[1]])){
                   NULL
@@ -313,14 +321,54 @@ twoDrugs.batch.server <- function(id, fileInfo) {
               invokeRestart("muffleWarning")
             }
           )
-          incProgress(1/nrow(pairs))
+          progress$set(value = i, message = paste0(i, " of ", nrow(pairs), " Combinations Complete..."))
         }
+        progress$close()
+        if(nchar(warning_msg) == 0)
+          warning_msg <- "No warning messages"
+        return_value <- list(rbindlist(res_list), warning_msg)
+        names(return_value) <- c("table","warningMessage")
+        return_value
       })
-      if(nchar(warning_msg) == 0)
-        warning_msg <- "No warning messages"
-      warningMessage(warning_msg)
-      return(rbindlist(res_list))
+      promise_race(future_result) %...>% {remove_modal_spinner()}
+      future_result
     })
+    
+    
+    output$table <- renderDataTable({
+      promise_all(data = computationResult()) %...>% with({
+        data$table[, names(data$table) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
+      })
+    },
+    options = list(scrollX = TRUE))
+    
+    output$log <- renderText({
+      promise_all(data = computationResult()) %...>% with({
+        data$warningMessage
+      })
+    })
+    
+    output$downloadData <- downloadHandler(
+      filename = function() {
+        paste('data-', Sys.Date(), '.txt', sep='')
+      },
+      content = function(file) {
+        promise_all(data = computationResult()) %...>% with({
+          write_delim(data$table, file, delim = "\t")
+        })
+      }
+    )
+    
+    output$downloadLog <- downloadHandler(
+      filename = function() {
+        paste('log-', Sys.Date(), '.txt', sep='')
+      },
+      content = function(file) {
+        promise_all(data = computationResult()) %...>% with({
+          write(data$warningMessage, file)
+        })
+      }
+    )
 
   })
 }

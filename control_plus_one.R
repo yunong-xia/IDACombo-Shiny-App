@@ -328,7 +328,7 @@ controlPlusOne.ui <- function(id) {
       conditionalPanel(condition = "input.button", ns = ns, tabsetPanel(
         type = "tabs",
         tabPanel("Table", withSpinner(dataTableOutput(ns("table")))),
-        tabPanel("Plot", withSpinner(plotOutput(ns("plot"),  width = "100%", height = "400px"))),
+        tabPanel("Plot", plotOutput(ns("plot"),  width = "100%", height = "400px")),
         tabPanel('Log', withSpinner(verbatimTextOutput(ns('log'))))
       ))
     )
@@ -363,14 +363,7 @@ controlPlusOne.server <- function(id, fileInfo) {
 
     nSim <- checkedParameters$nSim
 
-    warningMessage <- reactiveVal(NULL)
-    
-    output$log <- renderText({
-      warningMessage()
-    })
-
-
-    tableResult <- eventReactive(input$button, {
+    computationResult <- eventReactive(input$button, {
       validate(
         need(!is.null(dataset()), "Please upload your data"),
         need(!is.null(selectedControlTreatment()), "Please select control treatment"),
@@ -384,134 +377,151 @@ controlPlusOne.server <- function(id, fileInfo) {
       } else {
         eff_se_col <- NULL
       }
-
-      res_list <- IDAPredict.ControlPlusOne(
-        Monotherapy_Data = dataset(),
-        Cell_Line_Name_Column = "Cell_Line",
-        Drug_Name_Column = "Drug",
-        Drug_Concentration_Column = "Drug_Dose",
-        Efficacy_Column = "Efficacy",
-        LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
-        Efficacy_Metric_Name = efficacyMetric(),
-        Control_Treatment_Drugs = selectedControlTreatment(),
-        Control_Treatment_Drug_Concentrations = selectedDose(),
-        Drug_to_Add = selectedDrugToAdd(),
-        Calculate_Uncertainty = checkedParameters$uncertainty(),
-        Efficacy_SE_Column = eff_se_col,
-        n_Simulations = nSim(),
-        Calculate_IDAcomboscore_And_Hazard_Ratio = checkedParameters$comboscore(),
-        Average_Duplicate_Records = checkedParameters$averageDuplicate()
-      )
-
-      cbind(
-        Control_Treatment = res_list$Control_Treatment,
-        Drug_to_Add = res_list$Drug_to_Add,
-        Number_of_Cell_Lines_Used = length(res_list$Cell_Lines_Used),
-        Cell_Lines_Used = paste(res_list$Cell_Lines_Used, collapse = ", "),
-        res_list[[1]]
+      
+      #show spinner and lock the whole ui
+      show_modal_spinner(
+        spin = "semipolar",
+        color = "#112446",
+        text = "Calculating Efficacy..."
       )
       
+      isLowerEfficacyBetter <- checkedParameters$isLowerEfficacy()
+      metricName <- efficacyMetric()
+      controlTreatment <- selectedControlTreatment()
+      dose <- selectedDose()
+      drugToAdd <- selectedDrugToAdd()
+      calculateUncertainty <- checkedParameters$uncertainty()
+      nSimulation <- nSim()
+      calculateComboscoreAndHazardRatio <- checkedParameters$comboscore()
+      averageDuplicateRecords <- checkedParameters$averageDuplicate()
+      data <- dataset()
+      file_type <- fileType()
       
-      warning_msg <- ""
-      res <- withCallingHandlers(
-        tryCatch(
-          expr = {
-            res_list <- IDAPredict.ControlPlusOne(
-              Monotherapy_Data = dataset(),
-              Cell_Line_Name_Column = "Cell_Line",
-              Drug_Name_Column = "Drug",
-              Drug_Concentration_Column = "Drug_Dose",
-              Efficacy_Column = "Efficacy",
-              LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
-              Efficacy_Metric_Name = efficacyMetric(),
-              Control_Treatment_Drugs = selectedControlTreatment(),
-              Control_Treatment_Drug_Concentrations = selectedDose(),
-              Drug_to_Add = selectedDrugToAdd(),
-              Calculate_Uncertainty = checkedParameters$uncertainty(),
-              Efficacy_SE_Column = eff_se_col,
-              n_Simulations = nSim(),
-              Calculate_IDAcomboscore_And_Hazard_Ratio = checkedParameters$comboscore(),
-              Average_Duplicate_Records = checkedParameters$averageDuplicate()
-            )
-            if(!is.data.frame(res_list[[1]])){
-              NULL
-            } else{
-              res <- cbind(
-                Control_Treatment = res_list$Control_Treatment,
-                Drug_to_Add = res_list$Drug_to_Add,
-                Number_of_Cell_Lines_Used = length(res_list$Cell_Lines_Used),
-                Cell_Lines_Used = paste(res_list$Cell_Lines_Used, collapse = ", "),
-                res_list[[1]]
-              )
-              res
+      future_result <- future({
+          warning_msg <- ""
+          res <- withCallingHandlers(
+            tryCatch(
+              expr = {
+                res_list <- IDAPredict.ControlPlusOne(
+                  Monotherapy_Data = data,
+                  Cell_Line_Name_Column = "Cell_Line",
+                  Drug_Name_Column = "Drug",
+                  Drug_Concentration_Column = "Drug_Dose",
+                  Efficacy_Column = "Efficacy",
+                  LowerEfficacyIsBetterDrugEffect = isLowerEfficacyBetter,
+                  Efficacy_Metric_Name = metricName,
+                  Control_Treatment_Drugs = controlTreatment,
+                  Control_Treatment_Drug_Concentrations = dose,
+                  Drug_to_Add = drugToAdd,
+                  Calculate_Uncertainty = calculateUncertainty,
+                  Efficacy_SE_Column = eff_se_col,
+                  n_Simulations = nSimulation,
+                  Calculate_IDAcomboscore_And_Hazard_Ratio = calculateComboscoreAndHazardRatio,
+                  Average_Duplicate_Records = averageDuplicateRecords
+                )
+                if(!is.data.frame(res_list[[1]])){
+                  NULL
+                } else{
+                  res <- cbind(
+                    Control_Treatment = res_list$Control_Treatment,
+                    Drug_to_Add = res_list$Drug_to_Add,
+                    Number_of_Cell_Lines_Used = length(res_list$Cell_Lines_Used),
+                    Cell_Lines_Used = paste(res_list$Cell_Lines_Used, collapse = ", "),
+                    res_list[[1]]
+                  )
+                  res
+                }
+              }),
+            warning = function(w) {
+              warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+              invokeRestart("muffleWarning")
             }
-          }),
-        warning = function(w) {
-          warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
-          invokeRestart("muffleWarning")
-        }
-      )
-      if(nchar(warning_msg) == 0)
-        warning_msg <- "No warning messages"
-      warningMessage(warning_msg)
-      return(res)
+          )
+          
+          #get errorbar plots obeject
+          name_of_combo_efficacy <- paste0("Mean_Combo_",metricName)
+          if(file_type == "provided"){
+            res$Drug_to_Add_Dose <- as.numeric(gsub("\\(Csustained\\) ", "", res$Drug_to_Add_Dose))
+          }
+          p1 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res[[name_of_combo_efficacy]])) +
+            xlab("Drug to Add Dose") + ylab(paste0("Mean Combo ",metricName))
+          if(calculateUncertainty){
+            name_of_combo_efficacy_CI <- paste0("Mean_Combo_",metricName,"_95%_Confidence_Interval")
+            viability_CI <- rbindlist(lapply(res[[name_of_combo_efficacy_CI]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
+            p1 <- p1 + geom_errorbar(aes(ymin=viability_CI[[1]], ymax=viability_CI[[2]]), width=.05, position=position_dodge(.9))
+          }
+          if(calculateComboscoreAndHazardRatio){
+            p2 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$HR_vs_Control_Treatment)) +
+              xlab("Drug to Add Dose") + ylab("HR vs Control Treatment")
+            p3 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$HR_vs_Drug_to_Add)) +
+              xlab("Drug to Add Dose") + ylab("HR vs Drug to Add")
+            p4 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$IDA_Comboscore)) +
+              xlab("Drug to Add Dose") + ylab("IDA Comboscore")
+            if(calculateUncertainty){
+              HR_vs_Control_Treatment_CI <- rbindlist(lapply(res[["HR_vs_Control_Treatment_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
+              HR_vs_Drug_To_Add_CI <- rbindlist(lapply(res[["HR_vs_Drug_to_Add_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
+              IDA_Comboscore_CI <- rbindlist(lapply(res[["IDA_Comboscore_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
+              p2 <- p2 + geom_errorbar(aes(ymin=HR_vs_Control_Treatment_CI[[1]], ymax=HR_vs_Control_Treatment_CI[[2]]), width=.05, position=position_dodge(.9))
+              p3 <- p3 + geom_errorbar(aes(ymin=HR_vs_Drug_To_Add_CI[[1]], ymax=HR_vs_Drug_To_Add_CI[[2]]), width=.05, position=position_dodge(.9))
+              p4 <- p4 + geom_errorbar(aes(ymin=IDA_Comboscore_CI[[1]], ymax=IDA_Comboscore_CI[[2]]), width=.05, position=position_dodge(.9))
+            }
+          }
+          
+          if(calculateComboscoreAndHazardRatio)
+            #errorbar.plots <- grid.arrange(grobs=list(p1,p2,p3,p4),ncol = 2, nrow = 2)
+            plots <- list(p1,p2,p3,p4)
+          else
+            #errorbar.plots <- p1
+            plots <- list(p1)
+          
+          
+          
+          if(nchar(warning_msg) == 0)
+            warning_msg <- "No warning messages"
+          return_value <- list(res, warning_msg, plots)
+          names(return_value) <- c("table","warningMessage","plots")
+          return_value
+      })
+      
+      promise_race(future_result) %...>% {remove_modal_spinner()}#remove the spinnder
+      
+      future_result
     })
-
+    
+    
+    
+    
     output$table <- DT::renderDataTable(
       {
-        if (!is.null(tableResult())) {
-          tableResult()[, names(tableResult()) != "Cell_Lines_Used"]
-        }
+        promise_all(data = computationResult()) %...>% with({
+          if (!is.null(data$table)) {
+            data$table[, names(data$table) != "Cell_Lines_Used"]
+          }
+        })
       },
       options = list(scrollX = TRUE)
     )
     
-    plot.object <- eventReactive(input$button,{
-      res <- tableResult()
-      name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
-      if(fileType() == "provided"){
-        res$Drug_to_Add_Dose <- as.numeric(gsub("\\(Csustained\\) ", "", res$Drug_to_Add_Dose))
-      }
-      p1 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res[[name_of_combo_efficacy]])) +
-        xlab("Drug to Add Dose") + ylab(paste0("Mean Combo ",efficacyMetric()))
-      if(checkedParameters$uncertainty()){
-        name_of_combo_efficacy_CI <- paste0("Mean_Combo_",efficacyMetric(),"_95%_Confidence_Interval")
-        viability_CI <- rbindlist(lapply(res[[name_of_combo_efficacy_CI]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
-        p1 <- p1 + geom_errorbar(aes(ymin=viability_CI[[1]], ymax=viability_CI[[2]]), width=.05, position=position_dodge(.9))
-      }
-      if(checkedParameters$comboscore()){
-        p2 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$HR_vs_Control_Treatment)) +
-          xlab("Drug to Add Dose") + ylab("HR vs Control Treatment")
-        p3 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$HR_vs_Drug_to_Add)) +
-          xlab("Drug to Add Dose") + ylab("HR vs Drug to Add")
-        p4 <- qplot(as.numeric(res$Drug_to_Add_Dose),as.numeric(res$IDA_Comboscore)) +
-          xlab("Drug to Add Dose") + ylab("IDA Comboscore")
-        if(checkedParameters$uncertainty()){
-          HR_vs_Control_Treatment_CI <- rbindlist(lapply(res[["HR_vs_Control_Treatment_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
-          HR_vs_Drug_To_Add_CI <- rbindlist(lapply(res[["HR_vs_Drug_to_Add_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
-          IDA_Comboscore_CI <- rbindlist(lapply(res[["IDA_Comboscore_95%_Confidence_Interval"]], function(s){as.data.frame(matrix(as.double(strsplit(s,"_")[[1]]),nrow = 1))}))
-          p2 <- p2 + geom_errorbar(aes(ymin=HR_vs_Control_Treatment_CI[[1]], ymax=HR_vs_Control_Treatment_CI[[2]]), width=.05, position=position_dodge(.9))
-          p3 <- p3 + geom_errorbar(aes(ymin=HR_vs_Drug_To_Add_CI[[1]], ymax=HR_vs_Drug_To_Add_CI[[2]]), width=.05, position=position_dodge(.9))
-          p4 <- p4 + geom_errorbar(aes(ymin=IDA_Comboscore_CI[[1]], ymax=IDA_Comboscore_CI[[2]]), width=.05, position=position_dodge(.9))
-        }
-      }
-      
-      if(checkedParameters$comboscore())
-        grid.arrange(grobs=list(p1,p2,p3,p4),ncol = 2, nrow = 2)
-      else
-        p1
+    output$plot <- renderPlot({
+      promise_all(data = computationResult()) %...>% with({
+        grid.arrange(grobs=data$plots,ncol = 2, nrow = 2)
+      })
     })
     
-    output$plot <- renderPlot({
-      plot.object()
+    output$log <- renderText({
+      promise_all(data = computationResult()) %...>% with({
+        data$warningMessage
+      })
     })
-
+    
     output$downloadData <- downloadHandler(
       filename = function() {
         paste("data-", Sys.Date(), ".txt", sep = "")
       },
       content = function(con) {
-        write_delim(result(), con, delim = "\t")
+        promise_all(data = computationResult()) %...>% with({
+          write_delim(data$table, con, delim = "\t")
+        })
       }
     )
     
@@ -520,7 +530,9 @@ controlPlusOne.server <- function(id, fileInfo) {
         paste("plot(s)-", Sys.Date(), ".pdf", sep = "")
       },
       content = function(file) {
-        ggsave(file,plot = plot.object())
+        promise_all(data = computationResult()) %...>% with({
+          ggsave(file,plot = grid.arrange(grobs=data$plots,ncol = 2, nrow = 2))
+        })
       }
     )
     
@@ -529,9 +541,12 @@ controlPlusOne.server <- function(id, fileInfo) {
         paste('log-', Sys.Date(), '.txt', sep='')
       },
       content = function(file) {
-        write(warningMessage(), file)
+        promise_all(data = computationResult()) %...>% with({
+          write(data$warningMessage, file)
+        })
       }
     )
+    
     
     
   })

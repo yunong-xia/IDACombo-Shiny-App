@@ -357,13 +357,8 @@ testVsControl.server <- function(id, fileInfo) {
     
     nSim <- checkedParameters$nSim
     
-    warningMessage <- reactiveVal(NULL)
     
-    output$log <- renderText({
-      warningMessage()
-    })
-    
-    tableResult <- eventReactive(input$button, {
+    computationResult <- eventReactive(input$button, {
       validate(
         need(!is.null(dataset()), "Please upload your data"),
         need(!is.null(selectedControlDrugs()), "Please select control treatment drugs"),
@@ -373,76 +368,123 @@ testVsControl.server <- function(id, fileInfo) {
         need(length(selectedTestDoses()) == length(selectedTestDrugs()), "Please select test treatment doses")
       )
       
-      
-      
-      monotherapy_data <- dataset()
       if("seCol" %in% extraCol())
         eff_se_col = "Efficacy_SE"
       else
         eff_se_col = NULL
 
-      
-      warning_msg <- ""
-      res <- withCallingHandlers(
-        tryCatch(
-          expr = {
-            res_list <- IDAPredict.TestvsControl(
-              Monotherapy_Data = monotherapy_data,
-              Cell_Line_Name_Column = "Cell_Line",
-              Drug_Name_Column = "Drug",
-              Drug_Concentration_Column = "Drug_Dose",
-              Efficacy_Column = "Efficacy",
-              LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
-              Efficacy_Metric_Name = efficacyMetric(),
-              Control_Treatment_Drugs = selectedControlDrugs(),
-              Control_Treatment_Drug_Concentrations = selectedControlDoses(),
-              Test_Treatment_Drugs = selectedTestDrugs(),
-              Test_Treatment_Drug_Concentrations = selectedTestDoses(),
-              Calculate_Uncertainty = checkedParameters$uncertainty(),
-              Efficacy_SE_Column = eff_se_col,
-              n_Simulations = nSim(),
-              Calculate_Hazard_Ratio = checkedParameters$hazardRatio(),
-              Average_Duplicate_Records = checkedParameters$averageDuplicate()
-            )
-            if(!is.data.frame(res_list[[1]])){
-              NULL
-            } else{
-              res <- cbind(Control_Treatment_Drugs = paste(res_list$Control_Treatment$Control_Treatment_Drugs, collapse = ", "), 
-                           Control_Treatment_Drug_Concentration = paste(res_list$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
-                           Test_Treatment_Drugs = paste(res_list$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
-                           Test_Treatment_Drugs_Concentrations = paste(res_list$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
-                           Number_of_Cell_Lines_Used = length(res_list$Cell_Lines_Used),
-                           Cell_Lines_Used = paste(res_list$Cell_Lines_Used, collapse = ", "),
-                           res_list[[1]])
-              res
+      #show spinner and lock the whole ui
+      show_modal_spinner(
+        spin = "semipolar",
+        color = "#112446",
+        text = "Calculating Efficacy..."
+      )
+      isLowerEfficacyBetter <- checkedParameters$isLowerEfficacy()
+      metricName <- efficacyMetric()
+      controlDrugs <- selectedControlDrugs()
+      controlDoses <- selectedControlDoses()
+      testDrugs <- selectedTestDrugs()
+      testDoses <- selectedTestDoses()
+      calculateUncertainty <- checkedParameters$uncertainty()
+      nSimulation <- nSim()
+      calculateHazardRatio <- checkedParameters$hazardRatio()
+      averageDuplicateRecords <- checkedParameters$averageDuplicate()
+      data <- dataset()
+      future_result <- future(
+        global = c("isLowerEfficacyBetter","metricName","controlDrugs","controlDoses","testDrugs","testDoses","calculateUncertainty","nSimulation","calculateHazardRatio","averageDuplicateRecords","data", "eff_se_col"),
+        packages = c("IDACombo", "ggplot2","data.table","gridExtra"),
+        expr = {
+          warning_msg <- ""
+          res <- withCallingHandlers(
+            tryCatch(
+              expr = {
+                res_list <- IDAPredict.TestvsControl(
+                  Monotherapy_Data = data,
+                  Cell_Line_Name_Column = "Cell_Line",
+                  Drug_Name_Column = "Drug",
+                  Drug_Concentration_Column = "Drug_Dose",
+                  Efficacy_Column = "Efficacy",
+                  LowerEfficacyIsBetterDrugEffect = isLowerEfficacyBetter,
+                  Efficacy_Metric_Name = metricName,
+                  Control_Treatment_Drugs = controlDrugs,
+                  Control_Treatment_Drug_Concentrations = controlDoses,
+                  Test_Treatment_Drugs = testDrugs,
+                  Test_Treatment_Drug_Concentrations = testDoses,
+                  Calculate_Uncertainty = calculateUncertainty,
+                  Efficacy_SE_Column = eff_se_col,
+                  n_Simulations = nSimmulation,
+                  Calculate_Hazard_Ratio = calculateHazardRatio,
+                  Average_Duplicate_Records = averageDuplicateRecords
+                )
+                if(!is.data.frame(res_list[[1]])){
+                  NULL
+                } else{
+                  res <- cbind(Control_Treatment_Drugs = paste(res_list$Control_Treatment$Control_Treatment_Drugs, collapse = ", "), 
+                               Control_Treatment_Drug_Concentration = paste(res_list$Control_Treatment$Control_Treatment_Drug_Concentrations, collapse = ", "),
+                               Test_Treatment_Drugs = paste(res_list$Test_Treatment$Test_Treatment_Drugs, collapse = ", "),
+                               Test_Treatment_Drugs_Concentrations = paste(res_list$Test_Treatment$Test_Treatment_Drug_Concentrations, collapse = ", "),
+                               Number_of_Cell_Lines_Used = length(res_list$Cell_Lines_Used),
+                               Cell_Lines_Used = paste(res_list$Cell_Lines_Used, collapse = ", "),
+                               res_list[[1]])
+                  res
+                }
+              }),
+            warning = function(w) {
+              warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+              invokeRestart("muffleWarning")
             }
-          }),
-        warning = function(w) {
-          warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
-          invokeRestart("muffleWarning")
+          )
+          
+          if(nchar(warning_msg) == 0)
+            warning_msg <- "No warning messages"
+          return_value = list(res,warning_msg)
+          names(return_value) <- c("table","warningMessage")
+          return_value
         }
       )
-      if(nchar(warning_msg) == 0)
-        warning_msg <- "No warning messages"
-      warningMessage(warning_msg)
-      return(res)
+      promise_race(future_result) %...>% {remove_modal_spinner()}#remove the spinnder
+      
+      return(future_result)
       
       
     })
-    
+
     output$result <- renderDataTable({
-      if(!is.null(tableResult()))
-        tableResult()[, names(tableResult()) != "Cell_Lines_Used"]
-      },options = list(scrollX = TRUE))
+      promise_all(data = computationResult()) %...>% with({
+        if(!is.null(data$table))
+          data$table[, names(data$table) != "Cell_Lines_Used"]
+      })
+    },options = list(scrollX = TRUE))
+    
+    output$log <- renderText({
+      promise_all(data = computationResult()) %...>% with({
+        data$warningMessage
+      })
+    })
     
     output$downloadData <- downloadHandler(
       filename = function() {
         paste('data-', Sys.Date(), '.txt', sep='')
       },
       content = function(con) {
-        write_delim(result(), con, delim = "\t")
+        promise_all(data = computationResult()) %...>% with({
+          write_delim(data$table, con, delim = "\t")
+        })
       }
     )
+    
+    output$downloadLog <- downloadHandler(
+      filename = function() {
+        paste('log-', Sys.Date(), '.txt', sep='')
+      },
+      content = function(file) {
+        promise_all(data = computationResult()) %...>% with({
+          write(data$warningMessage, file)
+        })
+      }
+    )
+    
+    
     
   })
 }

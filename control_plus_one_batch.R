@@ -1,11 +1,10 @@
-
 # control treatment
 controlPlusOne.batch.controlTreatmentInput <- function(id) {
   ns <- NS(id)
   pickerInput(ns("drugs"), "Select Drugs in Treatment (Multiple)",
-    choices = NULL,
-    options = list(`actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE),
-    multiple = T
+              choices = NULL,
+              options = list(`actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE),
+              multiple = T
   )
 }
 
@@ -14,11 +13,11 @@ controlPlusOne.batch.controlTreatmentServer <- function(id, dataset) {
     observeEvent(dataset(), {
       drug_choices <- unique(dataset()$Drug)
       updatePickerInput(session,
-        inputId = "drugs", label = "Select drugs in treatment (Multiple)",
-        choices = drug_choices
+                        inputId = "drugs", label = "Select drugs in treatment (Multiple)",
+                        choices = drug_choices
       )
     })
-
+    
     reactive(input$drugs)
   })
 }
@@ -49,14 +48,14 @@ controlPlusOne.batch.doseServer <- function(id, dataset, fileType, selectedContr
             dose_choices <- clean_conc
           }
           selectInput(ns(paste0("dose", i)), paste0("Select dose for Drug: ", selectedControlTreatment()[i]),
-            choices = dose_choices
+                      choices = dose_choices
           )
         })
         end <- Sys.time()
         l
       }
     })
-
+    
     # return a vector of selected drug doses
     reactive({
       lapply(1:length(selectedControlTreatment()), function(i) {
@@ -85,11 +84,11 @@ controlPlusOne.batch.drugToAddServer <- function(id, dataset, selectedControlTre
     observeEvent(c(dataset(), selectedControlTreatment()), {
       to_add_choices <- setdiff(unique(dataset()$Drug), selectedControlTreatment())
       updatePickerInput(session,
-        inputId = "drugToAdd", label = "Drug to Add",
-        choices = to_add_choices
+                        inputId = "drugToAdd", label = "Drug to Add",
+                        choices = to_add_choices
       )
     })
-
+    
     reactive(input$drugToAdd)
   })
 }
@@ -100,22 +99,22 @@ controlPlusOne.batch.cellLineInput <- function(id) {
   ns <- NS(id)
   tagList(
     pickerInput(ns("subgroups"), "Select Cell Lines By Subgroups",
-      choices = NULL,
-      options = list(`live-search-style` = "startsWith", `live-search` = TRUE),
-      multiple = T
+                choices = NULL,
+                options = list(`live-search-style` = "startsWith", `live-search` = TRUE),
+                multiple = T
     ),
     div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("selectAllSubgroups"),"All Subgroups")),
     div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("deselectAllSubgroups"),"Clean Subgroups")),
     pickerInput(ns("cell_lines"), "Cell-Line available for both drugs (Multiple)",
-      choices = list(
-        `Cancer Cell Lines` = NULL
-      ),
-      options = list(
-        `actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE,
-        `selected-text-format` = "count",
-        `count-selected-text` = "{0} of cell lines chosen (on a total of {1})"
-      ),
-      multiple = T
+                choices = list(
+                  `Cancer Cell Lines` = NULL
+                ),
+                options = list(
+                  `actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE,
+                  `selected-text-format` = "count",
+                  `count-selected-text` = "{0} of cell lines chosen (on a total of {1})"
+                ),
+                multiple = T
     )
   )
 }
@@ -131,132 +130,132 @@ controlPlusOne.batch.cellLineServer <- function(id, dataset) {
         NULL
       }
     )
-
+    
     cell_line_choices <- reactive(
       unique(cl_sg_set()$Cell_Line)
     )
-
+    
     subgroups_choices <- reactive(
       unique(cl_sg_set()$Cell_Line_Subgroup)
     )
-
+    
     observeEvent(c(dataset()), {
       updatePickerInput(session,
-        inputId = "cell_lines", label = "Select Cell Lines",
-        choices = cell_line_choices()
+                        inputId = "cell_lines", label = "Select Cell Lines",
+                        choices = cell_line_choices()
       )
       updatePickerInput(session,
-        inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-        selected = NULL,
-        choices = c("Custom", subgroups_choices())
+                        inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = NULL,
+                        choices = c("Custom", subgroups_choices())
       )
     })
-
+    
     prev_selected_cell_lines <- reactiveVal(value = NULL)
     prev_selected_subgroups <- reactiveVal(value = NULL)
-
+    
     observeEvent(input$subgroups,
-      {
-        if ("Custom" %in% prev_selected_subgroups()) { ## Previously selected "Custom"
-          if ("Custom" %in% input$subgroups && length(input$subgroups) > 1) { ## now select other subgroups.
-            new_subgroups <- setdiff(input$subgroups, "Custom")
-            new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
-            prev_selected_cell_lines(new_cell_lines)
-            prev_selected_subgroups(new_subgroups)
-            updatePickerInput(session,
-              inputId = "cell_lines", label = "Select Cell Lines",
-              selected = new_cell_lines,
-              choices = cell_line_choices()
-            )
-            updatePickerInput(session,
-              inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-              selected = new_subgroups,
-              choices = c("Custom", subgroups_choices())
-            )
-          }
-          else if (is.null(input$subgroups)) { # when users deselect "Custom"
-            prev_selected_cell_lines(NULL)
-            updatePickerInput(session,
-              inputId = "cell_lines", label = "Select Cell Lines",
-              selected = NULL,
-              choices = cell_line_choices()
-            )
-          }
-          else {
-            # do nothing
-          }
-        }
-        else { ## Previously didn't select "Custom"
-          if ("Custom" %in% input$subgroups) { ## newly select "Custom"
-            prev_selected_subgroups("Custom")
-            updatePickerInput(session,
-              inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-              selected = "Custom",
-              choices = c("Custom", subgroups_choices())
-            )
-          }
-          else { # just select other subgroups
-            new_subgroups <- input$subgroups
-            new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
-            prev_selected_cell_lines(new_cell_lines)
-            prev_selected_subgroups(new_subgroups)
-            updatePickerInput(session,
-              inputId = "cell_lines", label = "Select Cell Lines",
-              selected = new_cell_lines,
-              choices = cell_line_choices()
-            )
-            updatePickerInput(session,
-              inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-              selected = new_subgroups,
-              choices = c("Custom", subgroups_choices())
-            )
-          }
-        }
-      },
-      ignoreNULL = F
+                 {
+                   if ("Custom" %in% prev_selected_subgroups()) { ## Previously selected "Custom"
+                     if ("Custom" %in% input$subgroups && length(input$subgroups) > 1) { ## now select other subgroups.
+                       new_subgroups <- setdiff(input$subgroups, "Custom")
+                       new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
+                       prev_selected_cell_lines(new_cell_lines)
+                       prev_selected_subgroups(new_subgroups)
+                       updatePickerInput(session,
+                                         inputId = "cell_lines", label = "Select Cell Lines",
+                                         selected = new_cell_lines,
+                                         choices = cell_line_choices()
+                       )
+                       updatePickerInput(session,
+                                         inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                                         selected = new_subgroups,
+                                         choices = c("Custom", subgroups_choices())
+                       )
+                     }
+                     else if (is.null(input$subgroups)) { # when users deselect "Custom"
+                       prev_selected_cell_lines(NULL)
+                       updatePickerInput(session,
+                                         inputId = "cell_lines", label = "Select Cell Lines",
+                                         selected = NULL,
+                                         choices = cell_line_choices()
+                       )
+                     }
+                     else {
+                       # do nothing
+                     }
+                   }
+                   else { ## Previously didn't select "Custom"
+                     if ("Custom" %in% input$subgroups) { ## newly select "Custom"
+                       prev_selected_subgroups("Custom")
+                       updatePickerInput(session,
+                                         inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                                         selected = "Custom",
+                                         choices = c("Custom", subgroups_choices())
+                       )
+                     }
+                     else { # just select other subgroups
+                       new_subgroups <- input$subgroups
+                       new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
+                       prev_selected_cell_lines(new_cell_lines)
+                       prev_selected_subgroups(new_subgroups)
+                       updatePickerInput(session,
+                                         inputId = "cell_lines", label = "Select Cell Lines",
+                                         selected = new_cell_lines,
+                                         choices = cell_line_choices()
+                       )
+                       updatePickerInput(session,
+                                         inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                                         selected = new_subgroups,
+                                         choices = c("Custom", subgroups_choices())
+                       )
+                     }
+                   }
+                 },
+                 ignoreNULL = F
     )
-
+    
     observeEvent(input$selectAllSubgroups, {
       prev_selected_subgroups(subgroups_choices())
       updatePickerInput(session,
-        inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-        selected = subgroups_choices(),
-        choices = c("Custom", subgroups_choices())
+                        inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = subgroups_choices(),
+                        choices = c("Custom", subgroups_choices())
       )
     })
-
+    
     observeEvent(input$deselectAllSubgroups, {
       prev_selected_subgroups(NULL)
       updatePickerInput(session,
-        inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-        selected = NULL,
-        choices = c("Custom", subgroups_choices())
+                        inputId = "subgroups", label = "Select Cell Lines By Subgroups",
+                        selected = NULL,
+                        choices = c("Custom", subgroups_choices())
       )
     })
-
-
+    
+    
     observeEvent(input$cell_lines,
-      {
-        if ("Custom" %in% input$subgroups) {
-          prev_selected_cell_lines(input$cell_lines)
-        }
-        else {
-          # check whether the selected cell line match those subgroups.
-          if (!is.null(cl_sg_set()) && length(unique(cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups])) != length(input$cell_lines)) {
-            prev_selected_cell_lines(input$cell_lines)
-            prev_selected_subgroups(input$subgroups)
-            updatePickerInput(session,
-              inputId = "subgroups",
-              label = "Select Cell Lines By Subgroups",
-              selected = "Custom",
-              choices = c("Custom", subgroups_choices())
-            )
-          }
-        }
-      },
-      ignoreNULL = F
+                 {
+                   if ("Custom" %in% input$subgroups) {
+                     prev_selected_cell_lines(input$cell_lines)
+                   }
+                   else {
+                     # check whether the selected cell line match those subgroups.
+                     if (!is.null(cl_sg_set()) && length(unique(cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups])) != length(input$cell_lines)) {
+                       prev_selected_cell_lines(input$cell_lines)
+                       prev_selected_subgroups(input$subgroups)
+                       updatePickerInput(session,
+                                         inputId = "subgroups",
+                                         label = "Select Cell Lines By Subgroups",
+                                         selected = "Custom",
+                                         choices = c("Custom", subgroups_choices())
+                       )
+                     }
+                   }
+                 },
+                 ignoreNULL = F
     )
-
+    
     list(
       cellLines = reactive(input$cell_lines),
       subgroups = reactive(input$subgroups)
@@ -298,7 +297,7 @@ controlPlusOne.batch.parametersInput <- function(id) {
 
 controlPlusOne.batch.parametersServer <- function(id, fileType, isLowerEfficacy) {
   moduleServer(id, function(input, output, session) {
-
+    
     list(
       isLowerEfficacy = isLowerEfficacy,
       uncertainty = reactive(input$uncertainty),
@@ -345,34 +344,32 @@ controlPlusOne.batch.ui <- function(id) {
 controlPlusOne.batch.server <- function(id, fileInfo) {
   moduleServer(id, function(input, output, session) {
     dataset <- fileInfo$dataset
-
+    
     extraCol <- fileInfo$extraCol
-
+    
     fileType <- fileInfo$type
     
     efficacyMetric <- fileInfo$efficacyMetric
     
     isLowerEfficacy <- fileInfo$isLowerEfficacy
-
+    
     selectedControlTreatment <- controlPlusOne.batch.controlTreatmentServer("controlTreatmentSelection", dataset)
-
+    
     selectedDose <- controlPlusOne.batch.doseServer("doseSelection", dataset, fileType, selectedControlTreatment)
-
+    
     selectedDrugToAdd <- controlPlusOne.batch.drugToAddServer("drugToAddSelection", dataset, selectedControlTreatment)
-
+    
     selectedCellLinesAndSubgroups <- controlPlusOne.batch.cellLineServer("cellLineSelection", dataset)
-
+    
     selectedCellLines <- selectedCellLinesAndSubgroups$cellLines
-
+    
     selectedSubgroups <- selectedCellLinesAndSubgroups$subgroups
-
+    
     checkedParameters <- controlPlusOne.batch.parametersServer("parametersCheck", fileType, isLowerEfficacy)
-
-    nSim <- checkedParameters$nSim
-
-    warningMessage <- reactiveVal()
-
-    result <- eventReactive(input$button, {
+    
+    nSim <- checkedParameters$nSim    
+    
+    computationResult <- eventReactive(input$button, {
       validate(
         need(!is.null(dataset()), "Please upload your data"),
         need(!is.null(selectedControlTreatment()), "Please select control treatment"),
@@ -380,18 +377,35 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
         need(!is.null(selectedCellLines()), "Please select Cell lines"),
         need(length(selectedDose()) == length(selectedControlTreatment()), "Please select doses")
       )
-
       if ("seCol" %in% extraCol()) {
         eff_se_col <- "Efficacy_SE"
       } else {
         eff_se_col <- NULL
       }
-
-      warning_msg <- ""
-      res_list <- vector("list", length = length(selectedDrugToAdd()))
+      show_modal_spinner(
+        spin = "semipolar",
+        color = "#112446",
+        text = "Calculating Efficacy"
+      )
       monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines(), ]
-      withProgress(message = "Computing...", value = 0, {
-        for (i in seq_along(selectedDrugToAdd())) {
+      isLowerEfficacyBetter <- checkedParameters$isLowerEfficacy()
+      metricName <- efficacyMetric()
+      controlTreatment <- selectedControlTreatment()
+      dose <- selectedDose()
+      drugsToAdd <- selectedDrugToAdd()
+      calculateUncertainty <- checkedParameters$uncertainty()
+      nSimulation <- nSim()
+      calculateComboscoreAndHazardRatio <- checkedParameters$comboscore()
+      averageDuplicateRecords <- checkedParameters$averageDuplicate()
+      progress <- AsyncProgress$new(session, min = 0, max = length(drugsToAdd), message = "Initializing Calculation......")
+      future_resulst <- future(
+        global = c("monotherapy_data","isLowerEfficacyBetter","metricName","controlTreatment","dose","drugsToAdd","calculateUncertainty","nSimulation","calculateComboscoreAndHazardRatio","averageDuplicateRecords","eff_se_col","progress"),
+        packages = c("IDACombo","data.table","ipc"),
+        seed = T,
+        expr = {
+        warning_msg <- ""
+        res_list <- vector("list", length = length(drugsToAdd))
+        for (i in seq_along(drugsToAdd)) {
           # get mono data
           res_list[[i]] <- withCallingHandlers(
             tryCatch(
@@ -402,16 +416,16 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
                   Drug_Name_Column = "Drug",
                   Drug_Concentration_Column = "Drug_Dose",
                   Efficacy_Column = "Efficacy",
-                  LowerEfficacyIsBetterDrugEffect = checkedParameters$isLowerEfficacy(),
-                  Efficacy_Metric_Name = efficacyMetric(),
-                  Control_Treatment_Drugs = selectedControlTreatment(),
-                  Control_Treatment_Drug_Concentrations = selectedDose(),
-                  Drug_to_Add = selectedDrugToAdd()[i],
-                  Calculate_Uncertainty = checkedParameters$uncertainty(),
+                  LowerEfficacyIsBetterDrugEffect = isLowerEfficacyBetter,
+                  Efficacy_Metric_Name = metricName,
+                  Control_Treatment_Drugs = controlTreatment,
+                  Control_Treatment_Drug_Concentrations = dose,
+                  Drug_to_Add =drugsToAdd[i],
+                  Calculate_Uncertainty = calculateUncertainty,
                   Efficacy_SE_Column = eff_se_col,
-                  n_Simulations = nSim(),
-                  Calculate_IDAcomboscore_And_Hazard_Ratio = checkedParameters$comboscore(),
-                  Average_Duplicate_Records = checkedParameters$averageDuplicate()
+                  n_Simulations = nSimulation,
+                  Calculate_IDAcomboscore_And_Hazard_Ratio = calculateComboscoreAndHazardRatio,
+                  Average_Duplicate_Records = averageDuplicateRecords
                 )
                 if (!is.data.frame(res[[1]])) {
                   NULL
@@ -432,44 +446,61 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
               invokeRestart("muffleWarning")
             }
           )
-          incProgress(1 / length(selectedDrugToAdd()))
+          
+          progress$set(value = i, message = paste0(i, " of ", length(drugsToAdd), " Combinations Complete..."))
         }
+        progress$close()
+        if (nchar(warning_msg) == 0) {
+          warning_msg <- "No warning messages"
+        }
+        return_value = list(rbindlist(res_list),warning_msg)
+        names(return_value) = c("table","warningMessage")
+        return_value
       })
-      if (nchar(warning_msg) == 0) {
-        warning_msg <- "No warning messages"
-      }
-      warningMessage(warning_msg)
-      return(rbindlist(res_list))
+      promise_all(future_resulst) %...>% {remove_modal_spinner()}
+      future_resulst
     })
-
+    
     output$table <- DT::renderDataTable(
       {
-        result()[, names(result()) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
+        promise_all(data = computationResult()) %...>% with({
+          data$table[, names(data$table) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
+          
+        })
       },
       options = list(scrollX = TRUE)
     )
-
+    
     output$log <- renderText({
-      warningMessage()
+      promise_all(data = computationResult()) %...>% with({
+        data$warningMessage        
+      })
     })
-
+    
     output$downloadData <- downloadHandler(
       filename = function() {
         paste("data-", Sys.Date(), ".txt", sep = "")
       },
       content = function(file) {
-        write_delim(result(), file, delim = "\t")
+        promise_all(data = computationResult()) %...>% with({
+          write_delim(data$table, file, delim = "\t")
+        })
       }
     )
-
-
+    
+    
     output$downloadLog <- downloadHandler(
       filename = function() {
         paste("log-", Sys.Date(), ".txt", sep = "")
       },
       content = function(file) {
-        write(warningMessage(), file)
+        promise_all(data = computationResult()) %...>% with({
+          write(data$warningMessage, file)
+        })
       }
     )
+    
+    
+    
   })
 }
