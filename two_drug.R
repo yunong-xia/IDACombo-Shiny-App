@@ -405,6 +405,9 @@ twoDrugs.server <- function(id, fileInfo) {
         
         name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric)
         plot.data <- res[,c("Drug_1", "Drug_2", "Drug1Dose", "Drug2Dose", name_of_combo_efficacy)]
+        if(plot.data$Drug_1[1] == plot.data$Drug_2[1]){
+          plot.data$Drug_2 = paste0(plot.data$Drug_2,"_2")
+        }
         plot.data$Group <- "Predicted Combination"
         if(file_type == "provided"){
           #remove "(Csustained) " from the dose columns and convert these columns to numeric
