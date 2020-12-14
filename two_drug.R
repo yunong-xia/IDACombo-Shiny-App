@@ -430,7 +430,7 @@ twoDrugs.server <- function(id, fileInfo) {
         origin <- which(groups == "Origin")
         groups <- groups[-origin]
         colors <- c("blue", "green", "white", "magenta")
-        rgl.open(useNULL = T)
+        rgl.open(useNULL = rgl.useNULL())
         name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric)
         scatter3d(x = plot.data$Drug2Dose, y = plot.data[[name_of_combo_efficacy]], z = plot.data$Drug1Dose, 
                   surface = F, grid = F, ellipsoid = F, xlab = "", zlab = "", ylab = "", 
@@ -526,49 +526,6 @@ twoDrugs.server <- function(id, fileInfo) {
         })
       }
     )
-    
-    
-    
-    
-    # observeEvent(computationResult(),{
-    #   req(computationResult())
-    #   promise_all(data = computationResult()) %...>% with({
-    #     output$table <- renderDataTable(data$table,
-    #                                     options = list(scrollX = TRUE))
-    #     
-    #     output$log <- renderText(data$warningMessage)
-    #     
-    #     output$plot <- renderRglwidget(data$plot3d)
-    #     
-    #     output$downloadData <- downloadHandler(
-    #       filename = function() {
-    #         paste('data-', Sys.Date(), '.txt', sep='')
-    #       },
-    #       content = function(con) {
-    #         write_delim(data$table, con, delim = "\t")
-    #       }
-    #     )
-    #     
-    #     output$downloadPlot <- downloadHandler(
-    #       filename = function() {
-    #         paste('plot-', Sys.Date(), '.html', sep='')
-    #       },
-    #       content = function(con) {
-    #         htmlwidgets::saveWidget(data$plot3d, con,selfcontained = TRUE)
-    #       }
-    #     )
-    #     
-    #     output$downloadLog <- downloadHandler(
-    #       filename = function() {
-    #         paste('log-', Sys.Date(), '.txt', sep='')
-    #       },
-    #       content = function(file) {
-    #         write(data$warningMessage, file)
-    #       }
-    #     )
-    #     
-    #   })
-    # })
     
   })
 }
