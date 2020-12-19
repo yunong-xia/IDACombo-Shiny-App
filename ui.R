@@ -148,6 +148,8 @@ citationPage <- fluidPage(
 )
 
 body <- dashboardBody(
+  #Enable Google analytics
+  tags$head(includeHTML(("./www/google-analytics.html"))),
   useShinyjs(),
   #page for each tab
   tabItems(
@@ -184,9 +186,9 @@ body <- dashboardBody(
 )
 
 ui <- dashboardPage(
-  skin = "green",
-  #Dashboard Header
-  dashboardHeader(title = "IDACombo" , titleWidth = 230),
-  sideBar,
-  body
-)
+        skin = "green",
+        #Dashboard Header
+        dashboardHeader(title = "IDACombo" , titleWidth = 230),
+        sideBar,
+        body
+      )

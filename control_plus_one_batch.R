@@ -1,9 +1,9 @@
 # control treatment
 controlPlusOne.batch.controlTreatmentInput <- function(id) {
   ns <- NS(id)
-  pickerInput(ns("drugs"), "Select Drugs in Treatment (Multiple)",
+  pickerInput(ns("drugs"), "Select Drug(s) in Control Treatment",
               choices = NULL,
-              options = list(`actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE),
+              options = list(`live-search-style` = "contains", `live-search` = TRUE, "max-options" = 5, "max-options-text" = "Maximum Number of Drugs Selected"),
               multiple = T
   )
 }
@@ -13,7 +13,7 @@ controlPlusOne.batch.controlTreatmentServer <- function(id, dataset) {
     observeEvent(dataset(), {
       drug_choices <- unique(dataset()$Drug)
       updatePickerInput(session,
-                        inputId = "drugs", label = "Select drugs in treatment (Multiple)",
+                        inputId = "drugs", label = "Select Drug(s) in Control Treatment",
                         choices = drug_choices
       )
     })
@@ -387,7 +387,7 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
         color = "#112446",
         text = "Calculating Efficacy"
       )
-      monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines(), ]
+      monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines() & dataset()$Drug %in% c(selectedDrugToAdd(), selectedControlTreatment()), ]
       isLowerEfficacyBetter <- checkedParameters$isLowerEfficacy()
       metricName <- efficacyMetric()
       controlTreatment <- selectedControlTreatment()
@@ -399,15 +399,14 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
       averageDuplicateRecords <- checkedParameters$averageDuplicate()
       progress <- AsyncProgress$new(session, min = 0, max = length(drugsToAdd), message = "Initializing Calculation......")
       future_resulst <- future(
-        global = c("monotherapy_data","isLowerEfficacyBetter","metricName","controlTreatment","dose","drugsToAdd","calculateUncertainty","nSimulation","calculateComboscoreAndHazardRatio","averageDuplicateRecords","eff_se_col","progress"),
-        packages = c("IDACombo","data.table","ipc"),
         seed = T,
         expr = {
         warning_msg <- ""
-        res_list <- vector("list", length = length(drugsToAdd))
+        collected_result <- NULL
+        progress$set(value = 0, message = paste0(0, " of ", length(drugsToAdd), " Combinations Complete..."))
         for (i in seq_along(drugsToAdd)) {
           # get mono data
-          res_list[[i]] <- withCallingHandlers(
+          ith_result <- withCallingHandlers(
             tryCatch(
               expr = {
                 res <- IDAPredict.ControlPlusOne(
@@ -446,14 +445,20 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
               invokeRestart("muffleWarning")
             }
           )
-          
+          if(is.null(collected_result)){
+            collected_result <- ith_result
+          }
+          else{
+            collected_result <- rbindlist(list(collected_result, ith_result))
+          }
+          rm(ith_result)
           progress$set(value = i, message = paste0(i, " of ", length(drugsToAdd), " Combinations Complete..."))
         }
         progress$close()
         if (nchar(warning_msg) == 0) {
           warning_msg <- "No warning messages"
         }
-        return_value = list(rbindlist(res_list),warning_msg)
+        return_value = list(collected_result,warning_msg)
         names(return_value) = c("table","warningMessage")
         return_value
       })

@@ -4,10 +4,10 @@
 #batch input
 twoDrugs.batch.drugInput <- function(id) {
   ns <- NS(id)
-  pickerInput(ns("drugs_batch"),"Select Drugs for Combinations (Multiple)",
+  pickerInput(ns("drugs_batch"),"Select Drugs to be Combined (maximum = 10)",
               choices = NULL,
-              options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE,
-                             `max_options` = 10),
+              options = list(`live-search-style` = "startsWith" , `live-search` = TRUE,
+                             `max-options` = 10),
               multiple = T)
 }
 
@@ -17,7 +17,7 @@ twoDrugs.batch.drugServer <- function(id, dataset) {
     
     observeEvent(dataset(), {
       drug_choices <- unique(dataset()$Drug)
-      updatePickerInput(session, inputId = "drugs_batch", label = "Select Drugs for Combinations (Multiple)",
+      updatePickerInput(session, inputId = "drugs_batch", label = "Select Drugs to be Combined",
                         choices = drug_choices)
     })
     
@@ -247,6 +247,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
       validate(
         need(!is.null(dataset()), "Please upload your data"),
         need(!is.null(selectedDrugs()), "Please select drugs"),
+        need(!length(selectedDrugs()) < 2, "Please select at least 2 drugs to combine"),
         need(!is.null(selectedCellLines()), "Please select Cell lines")
       )
       
@@ -273,19 +274,17 @@ twoDrugs.batch.server <- function(id, fileInfo) {
       nSim <- nSim()
       comboscore <- checkedParameters$comboscore()
       averageDuplicate <- checkedParameters$averageDuplicate()
-      monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines(),]
+      monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines() & dataset()$Drug %in% selectedDrugs(),]
       
       progress <- AsyncProgress$new(session, min = 0, max = nrow(pairs), message = "Initializing Calculation......")
       future_result <- future(
-        global = c("isLowerEfficacy","efficacyMetric","uncertainty","nSim","comboscore","averageDuplicate","monotherapy_data","progress", "eff_se_col", "pairs"),
-        packages =c("IDACombo","data.table"),
-        seed = T,
         expr = {
         warning_msg <- ""
-        res_list <- vector("list", length = length(pairs))
+        collected_result <- NULL
+        progress$set(value = 0, message = paste0(0, " of ", nrow(pairs), " Combinations Complete..."))
         for(i in 1:nrow(pairs)) {
           #get mono data
-          res_list[[i]] <- withCallingHandlers(
+          ith_result <- withCallingHandlers(
             tryCatch(
               expr = {
                 res <- IDAPredict.2drug(
@@ -307,26 +306,34 @@ twoDrugs.batch.server <- function(id, fileInfo) {
                 if(!is.data.frame(res[[1]])){
                   NULL
                 } else{
-                  res <- cbind(
+                  orgnaized_res <- cbind(
                     Drug1 = res$Drug1,
                     Drug2 = res$Drug2,
                     res$Efficacy_Predictions,
                     Cell_Lines_Used = paste(res$Cell_Lines_Used, collapse = ", "),
                     Number_of_Cell_Line_Used = length(res$Cell_Lines_Used))
-                  res
+                  rm(res)
+                  orgnaized_res
                 }
               }),
-            warning = function(w) {
+            warning = function(w) { #warning handling. This won't halt the computation. It only collect warning message.
               warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
               invokeRestart("muffleWarning")
             }
           )
+          if(is.null(collected_result)){
+            collected_result <- ith_result
+          }
+          else{
+            collected_result <- rbindlist(list(collected_result,ith_result))
+          }
+          rm(ith_result)
           progress$set(value = i, message = paste0(i, " of ", nrow(pairs), " Combinations Complete..."))
         }
         progress$close()
         if(nchar(warning_msg) == 0)
           warning_msg <- "No warning messages"
-        return_value <- list(rbindlist(res_list), warning_msg)
+        return_value <- list(collected_result, warning_msg)
         names(return_value) <- c("table","warningMessage")
         return_value
       })
@@ -337,7 +344,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     
     output$table <- renderDataTable({
       promise_all(data = computationResult()) %...>% with({
-        data$table[, names(data$table) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
+        data$table[, names(data$table) != "Cell_Lines_Used", with = F] # It is a data table, rather than data frame
       })
     },
     options = list(scrollX = TRUE))

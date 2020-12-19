@@ -27,7 +27,7 @@ options(shiny.maxRequestSize = 500 * 1024^2)
 options(stringsAsFactors = FALSE)
 
 par3d(cex = 1)
-plan(multisession)
+plan(multiprocess)
 
 # IDACombo Functionalities are implemented in each corresponding R file.
 source("dataset_import.R")

@@ -2,9 +2,9 @@
 # control treatment
 controlPlusOne.controlTreatmentInput <- function(id) {
   ns <- NS(id)
-  pickerInput(ns("drugs"), "Select Drugs in Treatment (Multiple)",
+  pickerInput(ns("drugs"), "Select Drug(s) in Control Treatment",
     choices = NULL,
-    options = list(`actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE),
+    options = list(`actions-box` = FALSE, `live-search-style` = "contains", `live-search` = TRUE, "max-options" = 10, "max-options-text" = "Maximum Number of Drugs Selected"),
     multiple = T
   )
 }
@@ -14,7 +14,7 @@ controlPlusOne.controlTreatmentServer <- function(id, dataset) {
     observeEvent(dataset(), {
       drug_choices <- unique(dataset()$Drug)
       updatePickerInput(session,
-        inputId = "drugs", label = "Select drugs in treatment (Multiple)",
+        inputId = "drugs", label = "Select Drug(s) in Control Treatment",
         choices = drug_choices
       )
     })

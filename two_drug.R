@@ -403,13 +403,28 @@ twoDrugs.server <- function(id, fileInfo) {
           }
         )
         
-        name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric)
-        plot.data <- res[,c("Drug_1", "Drug_2", "Drug1Dose", "Drug2Dose", name_of_combo_efficacy)]
+        if(nchar(warning_msg) == 0)
+          warning_msg <- "No warning messages"
+        
+        return_value <- list(res, warning_msg)
+        names(return_value) <- c("table","warningMessage")
+        return_value
+      }) 
+      promise_race(future_result) %...>% {remove_modal_spinner()}#remove the spinner
+      
+      future_result
+    })
+    
+    
+    plot.object <- reactive({
+      promise_all(data = computationResult())%...>% with({
+        name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
+        plot.data <- data$table[,c("Drug_1", "Drug_2", "Drug1Dose", "Drug2Dose", name_of_combo_efficacy)]
         if(plot.data$Drug_1[1] == plot.data$Drug_2[1]){
           plot.data$Drug_2 = paste0(plot.data$Drug_2,"_2")
         }
         plot.data$Group <- "Predicted Combination"
-        if(file_type == "provided"){
+        if(fileType() == "provided"){
           #remove "(Csustained) " from the dose columns and convert these columns to numeric
           # in order to label the x and y axis.
           plot.data$Drug1Dose <- as.numeric(gsub("\\(Csustained\\) ", "", plot.data$Drug1Dose))
@@ -431,7 +446,7 @@ twoDrugs.server <- function(id, fileInfo) {
         groups <- groups[-origin]
         colors <- c("blue", "green", "white", "magenta")
         rgl.open(useNULL = rgl.useNULL())
-        name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric)
+        name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
         scatter3d(x = plot.data$Drug2Dose, y = plot.data[[name_of_combo_efficacy]], z = plot.data$Drug1Dose, 
                   surface = F, grid = F, ellipsoid = F, xlab = "", zlab = "", ylab = "", 
                   groups = plot.data$Group, axis.ticks = F, axis.scales = T, axis.col = c("blue", "black", "darkgreen"), surface.col = colors)
@@ -459,18 +474,8 @@ twoDrugs.server <- function(id, fileInfo) {
         
         legend3d("topleft", legend = groups, col = colors[1:(length(groups)+1)][-origin], pch = 16, cex=3, inset=c(0.08, 0.07))
         
-        plot.object <- rglwidget()
-        
-        if(nchar(warning_msg) == 0)
-          warning_msg <- "No warning messages"
-        
-        return_value <- list(res, warning_msg, plot.object)
-        names(return_value) <- c("table","warningMessage", "plot3d")
-        return_value
-      }) 
-      promise_race(future_result) %...>% {remove_modal_spinner()}#remove the spinner
-      
-      future_result
+        rglwidget()
+      })
     })
     
     
@@ -489,8 +494,8 @@ twoDrugs.server <- function(id, fileInfo) {
     })
     
     output$plot <- renderRglwidget({
-      promise_all(data = computationResult()) %...>% with({
-        data$plot3d
+      promise_all(plot = plot.object()) %...>% with({
+        plot
       })
     })
     

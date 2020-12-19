@@ -1,8 +1,8 @@
 testVsControl.controlDrugInput <- function(id) {
   ns <- NS(id)
-  pickerInput(ns("controlDrugs"),"Select Drugs in Control Treatment (Multiple)",
+  pickerInput(ns("controlDrugs"),"Select Drug(s) in Control Treatment",
               choices = NULL,
-              options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE),
+              options = list(`actions-box` = FALSE, `live-search-style` = "contains", `live-search` = TRUE, "max-options" = 10, "max-options-text" = "Maximum Number of Drugs Selected"),
               multiple = T)
 }
 
@@ -10,7 +10,7 @@ testVsControl.controlDrugServer <- function(id, dataset) {
   moduleServer(id, function(input,output,session) {
     observeEvent(dataset(), {
       drug_choices <- unique(dataset()$Drug)
-      updatePickerInput(session, inputId = "controlDrugs", label = "Select drugs in Control Treatment",
+      updatePickerInput(session, inputId = "controlDrugs", label = "Select Drug(s) in Control Treatment",
                         choices = drug_choices)
     })
     
@@ -65,9 +65,9 @@ testVsControl.controlDoseServer <- function(id,dataset,fileType,selectedControlD
 
 testVsControl.testDrugInput <- function(id) {
   ns <- NS(id)
-  pickerInput(ns("testDrugs"),"Select Drugs in Test Treatment",
+  pickerInput(ns("testDrugs"),"Select Drug(s) in Test Treatment",
               choices = NULL,
-              options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE),
+              options = list(`actions-box` = FALSE, `live-search-style` = "contains", `live-search` = TRUE, "max-options" = 10, "max-options-text" = "Maximum Number of Drugs Selected"),
               multiple = T)
 }
 
@@ -75,7 +75,7 @@ testVsControl.testDrugServer <- function(id, dataset) {
   moduleServer(id, function(input,output,session) {
     observeEvent(dataset(), {
       drug_choices <- unique(dataset()$Drug)
-      updatePickerInput(session, inputId = "testDrugs", label = "Select drugs in Test Treatment",
+      updatePickerInput(session, inputId = "testDrugs", label = "Select Drug(s) in Test Treatment",
                         choices = drug_choices)
     })
     
@@ -412,7 +412,7 @@ testVsControl.server <- function(id, fileInfo) {
                   Test_Treatment_Drug_Concentrations = testDoses,
                   Calculate_Uncertainty = calculateUncertainty,
                   Efficacy_SE_Column = eff_se_col,
-                  n_Simulations = nSimmulation,
+                  n_Simulations = nSimulation,
                   Calculate_Hazard_Ratio = calculateHazardRatio,
                   Average_Duplicate_Records = averageDuplicateRecords
                 )
