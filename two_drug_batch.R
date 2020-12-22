@@ -6,8 +6,7 @@ twoDrugs.batch.drugInput <- function(id) {
   ns <- NS(id)
   pickerInput(ns("drugs_batch"),"Select Drugs to be Combined (maximum = 10)",
               choices = NULL,
-              options = list(`live-search-style` = "startsWith" , `live-search` = TRUE,
-                             `max-options` = 10),
+              options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE),
               multiple = T)
 }
 
