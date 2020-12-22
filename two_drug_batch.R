@@ -17,7 +17,7 @@ twoDrugs.batch.drugServer <- function(id, dataset) {
     
     observeEvent(dataset(), {
       drug_choices <- unique(dataset()$Drug)
-      updatePickerInput(session, inputId = "drugs_batch", label = "Select Drugs to be Combined",
+      updatePickerInput(session, inputId = "drugs_batch", label = "Select Drugs to be Combined (maximum = 10)",
                         choices = drug_choices)
     })
     
