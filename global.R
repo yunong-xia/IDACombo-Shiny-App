@@ -22,6 +22,7 @@ library(gridExtra)
 library(promises)
 library(future)
 library(ipc)
+library(memuse)
 
 options(shiny.maxRequestSize = 500 * 1024^2)
 options(stringsAsFactors = FALSE)
