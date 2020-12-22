@@ -148,6 +148,9 @@ citationPage <- fluidPage(
 )
 
 body <- dashboardBody(
+  #This is a initialization of shinyjs. shinyjs is a package. This app makes use of its ui lock feature.
+  useShinyjs(),
+  
   #Enable Google analytics
   tags$head(includeHTML(("./www/google-analytics.html"))),
   useShinyjs(),

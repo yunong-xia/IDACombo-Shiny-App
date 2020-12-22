@@ -324,6 +324,7 @@ twoDrugs.server <- function(id, fileInfo) {
     checkedParameters <- twoDrugs.parametersServer("parametersCheck",fileType, isLowerEfficacy)
     
     nSim <- checkedParameters$nSim
+
     
     computationResult <- eventReactive(input$button, {
       validate(

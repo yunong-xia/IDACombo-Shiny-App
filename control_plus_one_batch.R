@@ -323,6 +323,7 @@ controlPlusOne.batch.ui <- function(id) {
       tags$hr(),
       controlPlusOne.batch.parametersInput(ns("parametersCheck")),
       tags$hr(),
+      uiOutput(ns("RAM_warning_placeholder")),
       actionButton(ns("button"), "RUN")
     ),
     box(
@@ -367,7 +368,39 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
     
     checkedParameters <- controlPlusOne.batch.parametersServer("parametersCheck", fileType, isLowerEfficacy)
     
-    nSim <- checkedParameters$nSim    
+    nSim <- checkedParameters$nSim
+    
+    #Rendering Action button to do viability calculations
+    #Creating reactiveTimer to check whether or not this UI should exist once per 10 seconds
+    RAM_timer <- reactiveTimer(10000)
+    
+    #Checking RAM usage
+    RAM_Free_Ratio <- eventReactive(RAM_timer(), {
+      warning("Checking Ram")
+      gc()
+      ram <- memuse::Sys.meminfo()
+      ram$freeram/ram$totalram
+    })
+    
+    #Rendering UI
+    output$RAM_warning_placeholder <- renderUI({
+      warning("Rendering UI")
+      if(RAM_Free_Ratio() < 0.3){
+        wellPanel(
+          p(HTML("<b>Due to high server usage, no further batch processing calculations can be initiated at this time. Please try again later. We apologize for the inconvenience.</b>"), style = "color:red") 
+        )
+      }else({
+        return(NULL)
+      })
+    })
+    
+    observeEvent(RAM_Free_Ratio(),{
+      if(RAM_Free_Ratio() < 0.3){
+        disable("button")
+      }else{
+        enable("button")
+      }
+    })
     
     computationResult <- eventReactive(input$button, {
       validate(
@@ -469,7 +502,7 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
     output$table <- DT::renderDataTable(
       {
         promise_all(data = computationResult()) %...>% with({
-          data$table[, names(data$table) != "Cell_Lines_Used", with = F] # it is a data.table, rather than data.frame
+          data$table[, names(data$table) != "Cell_Lines_Used"]
           
         })
       },

@@ -180,6 +180,7 @@ twoDrugs.batch.ui <- function(id) {
         tags$hr(),
         twoDrugs.parametersInput(ns("parametersCheck_batch")),
         tags$hr(),
+        uiOutput(ns("RAM_warning_placeholder")),
         actionButton(ns("button_batch"), "RUN")
     ),
     box(width = 9, status = "primary", solidHeader = TRUE, title="2Drug Batch Process Result",
@@ -221,26 +222,38 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     checkedParameters <- twoDrugs.parametersServer("parametersCheck_batch", fileType, isLowerEfficacy)
     
     nSim <- checkedParameters$nSim
-
     
-    output$downloadData <- downloadHandler(
-      filename = function() {
-        paste('data-', Sys.Date(), '.txt', sep='')
-      },
-      content = function(file) {
-        write_delim(computationResult(), file, delim = "\t")
+    #Rendering Action button to do viability calculations
+    #Creating reactiveTimer to check whether or not this UI should exist once per 10 seconds
+    RAM_timer <- reactiveTimer(10000)
+    
+    #Checking RAM usage
+    RAM_Free_Ratio <- eventReactive(RAM_timer(), {
+      warning("Checking Ram")
+      gc()
+      ram <- memuse::Sys.meminfo()
+      ram$freeram/ram$totalram
+    })
+    
+    #Rendering UI
+    output$RAM_warning_placeholder <- renderUI({
+      warning("Rendering UI")
+      if(RAM_Free_Ratio() < 0.3){
+        wellPanel(
+          p(HTML("<b>Due to high server usage, no further batch processing calculations can be initiated at this time. Please try again later. We apologize for the inconvenience.</b>"), style = "color:red") 
+        )
+      }else({
+        return(NULL)
+      })
+    })
+    
+    observeEvent(RAM_Free_Ratio(),{
+      if(RAM_Free_Ratio() < 0.3){
+        disable("button_batch")
+      }else{
+        enable("button_batch")
       }
-    )
-    
-    output$downloadLog <- downloadHandler(
-      filename = function() {
-        paste('log-', Sys.Date(), '.txt', sep='')
-      },
-      content = function(file) {
-        write(warningMessage(), file)
-      }
-    )
-    
+    })
     
     #Calculate IDACombo result.
     computationResult <- eventReactive(input$button_batch,{
@@ -344,7 +357,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     
     output$table <- renderDataTable({
       promise_all(data = computationResult()) %...>% with({
-        data$table[, names(data$table) != "Cell_Lines_Used", with = F] # It is a data table, rather than data frame
+        data$table[, names(data$table) != "Cell_Lines_Used"]
       })
     },
     options = list(scrollX = TRUE))

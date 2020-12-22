@@ -14,7 +14,9 @@ shinyServer(function(input, output, session) {
 
   output$tablelook <- renderDataTable(fileInfo$dataset())
 
-  observe_helpers() # I use a helper. This is an observer to observe the helper.
+  observe_helpers() #This is an observer to observe the helper. see documentation of library(shinyhelper)
+  
+  
 
   twoDrugs.server("twoDrugs", fileInfo)
 
