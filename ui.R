@@ -2,7 +2,7 @@ sideBar <- dashboardSidebar(
   sidebarMenu(
     menuItem("Introduction", tabName = "introduction", selected = TRUE),
     menuItem("Dataset Loader", tabName = "table", icon=icon("table")),
-    hr(),
+    tags$hr(),
     menuItem("2-Drug", tabName = "twoDrug",
              menuSubItem("Focused", tabName = "onlyTwo"),
              menuSubItem("Batch Processing", tabName = "twoDrugBatch")),

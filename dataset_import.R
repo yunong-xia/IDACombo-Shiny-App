@@ -13,7 +13,7 @@ datasetInput <- function(id) {
           c("GDSC1", "GDSC2","CTRPv2","PRISM Repurposing")
         ),
         actionButton(ns("button"), "Load"),
-        hr(),
+        tags$hr(),
         h5("You can download the preprovided dataset chosen in the above menu."),
         downloadButton(ns("download"), "Download Dataset")
       ),
@@ -28,7 +28,7 @@ datasetInput <- function(id) {
         h5(strong("\"Efficacy_SE\""), ": (optional) Standared errors of the measured efficacy values."),
         h5(strong("\"Cell_Line_Subgroup\""), ": (optional) Terms by which cell lines can be grouped together.")
         ),
-        br(),
+        tags$br(),
         h4(HTML("Please also specify the following <u>prior to uploading your file</u>:")),
         wellPanel(textInput(ns("Master_efficacyMetric"), "Your Efficacy Metric Name (can be empty)", NULL, width = '70%', placeholder = "(i.e. Viability, % Growth, AUC, etc.)"),
                   checkboxInput(ns("Master_isLowerEfficacy"), "Lower Efficacy Is Better Drug Effect") %>%
