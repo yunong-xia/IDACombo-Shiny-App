@@ -502,7 +502,7 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
     output$table <- DT::renderDataTable(
       {
         promise_all(data = computationResult()) %...>% with({
-          data$table[, names(data$table) != "Cell_Lines_Used"]
+          data$table[, names(data$table) != "Cell_Lines_Used", with = FALSE]
           
         })
       },

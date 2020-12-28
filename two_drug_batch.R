@@ -356,7 +356,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     
     output$table <- renderDataTable({
       promise_all(data = computationResult()) %...>% with({
-        data$table[, names(data$table) != "Cell_Lines_Used"]
+        data$table[, names(data$table) != "Cell_Lines_Used", with = FALSE]
       })
     },
     options = list(scrollX = TRUE))
