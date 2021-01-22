@@ -100,7 +100,7 @@ controlPlusOne.batch.cellLineInput <- function(id) {
   tagList(
     pickerInput(ns("subgroups"), "Select Cell Lines By Subgroups",
                 choices = NULL,
-                options = list(`live-search-style` = "startsWith", `live-search` = TRUE),
+                options = list(`live-search-style` = "startsWith", `live-search` = TRUE, `none-Selected-Text` = "Optional"),
                 multiple = T
     ),
     div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("selectAllSubgroups"),"All Subgroups")),
@@ -385,7 +385,7 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
     #Rendering UI
     output$RAM_warning_placeholder <- renderUI({
       warning("Rendering UI")
-      if(RAM_Free_Ratio() < 0.3){
+      if(RAM_Free_Ratio() < min_RAM_free_ratio_to_start_future){
         wellPanel(
           p(HTML("<b>Due to high server usage, no further batch processing calculations can be initiated at this time. Please try again later. We apologize for the inconvenience.</b>"), style = "color:red") 
         )
@@ -395,7 +395,7 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
     })
     
     observeEvent(RAM_Free_Ratio(),{
-      if(RAM_Free_Ratio() < 0.3){
+      if(RAM_Free_Ratio() < min_RAM_free_ratio_to_start_future){
         disable("button")
       }else{
         enable("button")
@@ -438,6 +438,27 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
         collected_result <- NULL
         progress$set(value = 0, message = paste0(0, " of ", length(drugsToAdd), " Combinations Complete..."))
         for (i in seq_along(drugsToAdd)) {
+          #Checking if sufficient RAM exists to continue calculation
+          temp_ram <- memuse::Sys.meminfo()
+          temp_free_ram_ratio <- temp_ram$freeram/temp_ram$totalram
+          if(temp_free_ram_ratio <= min_RAM_free_ratio_within_future){
+            attempt <- 1
+            while(temp_free_ram_ratio <= min_RAM_free_ratio_within_future & attempt <= 10){
+              progress$set(value = i-1, message = paste0("WARNING: Server RAM low. Trying to continue...(Attempt ", attempt, " of 10)"))
+              Sys.sleep(10)
+              temp_ram <- memuse::Sys.meminfo()
+              temp_free_ram_ratio <- temp_ram$freeram/temp_ram$totalram
+              attempt <- attempt + 1
+            }
+            if(temp_free_ram_ratio > min_RAM_free_ratio_within_future){
+              progress$set(value = i-1, message = paste0(i-1, " of ", length(temp_conc_list), " Compounds Complete..."))
+            } else {
+              Aborted <- i-1
+              progress$set(value = i-1, message = "Aborting calculation...")
+              warning_msg <- paste0("WARNING: Calculation aborted after ", Aborted, " of ", length(temp_conc_list)," compounds complete. WARNING: Calculation failed. Please reload the web page and try again. Contact us if this problem persists.")
+              break
+            }
+          }
           # get mono data
           ith_result <- withCallingHandlers(
             tryCatch(
@@ -485,6 +506,7 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
             collected_result <- rbindlist(list(collected_result, ith_result))
           }
           rm(ith_result)
+          gc()
           progress$set(value = i, message = paste0(i, " of ", length(drugsToAdd), " Combinations Complete..."))
         }
         progress$close()

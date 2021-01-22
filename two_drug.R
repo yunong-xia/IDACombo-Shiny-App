@@ -450,7 +450,7 @@ twoDrugs.server <- function(id, fileInfo) {
         name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
         scatter3d(x = plot.data$Drug2Dose, y = plot.data[[name_of_combo_efficacy]], z = plot.data$Drug1Dose, 
                   surface = F, grid = F, ellipsoid = F, xlab = "", zlab = "", ylab = "", 
-                  groups = plot.data$Group, axis.ticks = F, axis.scales = T, axis.col = c("blue", "black", "darkgreen"), surface.col = colors)
+                  groups = plot.data$Group, axis.ticks = F, axis.scales = T, axis.col = c("darkgreen", "black", "blue"), surface.col = colors)
         par3d(windowRect = c(-1873, -433, -590, 530))
         par3d(userMatrix = matrix(c(0.5643716, -0.006304999, -0.82549691, 0, -0.1164742, 0.989359140, -0.08718707, 0, 0.8172630, 0.145355001, 0.55763179, 0, 0, 0, 0, 1), 
                                   nrow = 4, ncol = 4, byrow = T))
@@ -460,8 +460,8 @@ twoDrugs.server <- function(id, fileInfo) {
         z.labels <- formatC(seq(0,max(plot.data$Drug1Dose), length.out = 5), format = "g", digits = 2)[2:4]
         y.labels <- seq(0,100, length.out = 5)[2:4]
         x.labels <- formatC(seq(0,max(plot.data$Drug2Dose), length.out = 5), format = "g", digits = 2)[2:4]
-        rgl.texts(x = at, y = -0.05, z = 0, text = x.labels, col = "blue")
-        rgl.texts(0, -0.1, at, z.labels, col = "darkgreen")
+        rgl.texts(x = at, y = -0.05, z = 0, text = x.labels, col = "darkgreen")
+        rgl.texts(0, -0.1, at, z.labels, col = "blue")
         rgl.texts(-0.05, at, -0.05, y.labels, col = "black")
         
         best.monotherapy <- min(plot.data[[name_of_combo_efficacy]][grep("Monotherapy", plot.data$Group)])

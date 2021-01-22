@@ -4,23 +4,33 @@
 #batch input
 twoDrugs.batch.drugInput <- function(id) {
   ns <- NS(id)
-  pickerInput(ns("drugs_batch"),"Select Drugs to be Combined (maximum = 10)",
-              choices = NULL,
-              options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE),
-              multiple = T)
+  tagList(
+    pickerInput(ns("fixed_drug"),"Select the fixed drug",
+                choices = NULL,
+                options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE),
+                multiple = F),
+    pickerInput(ns("drugs_to_add"),"Select drugs to add",
+                choices = NULL,
+                options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE),
+                multiple = T)
+  )
 }
 
 twoDrugs.batch.drugServer <- function(id, dataset) {
-  stopifnot(is.reactive(dataset))
   moduleServer(id, function(input,output,session) {
     
     observeEvent(dataset(), {
       drug_choices <- unique(dataset()$Drug)
-      updatePickerInput(session, inputId = "drugs_batch", label = "Select Drugs to be Combined (maximum = 10)",
+      updatePickerInput(session, inputId = "fixed_drug", label = "Select the fixed drug",
+                        choices = drug_choices)
+      updatePickerInput(session, inputId = "drugs_to_add", label = "Select drugs to add",
                         choices = drug_choices)
     })
     
-    reactive(input$drugs_batch)
+    list(
+      fixed_drug = reactive(input$fixed_drug),
+      drugs_to_add = reactive(input$drugs_to_add)
+    )
   })
 }
 
@@ -30,7 +40,7 @@ twoDrugs.batch.cellLineInput <- function(id) {
   tagList(
     pickerInput(ns("subgroups"),"Select Cell Lines By Subgroups",
                 choices = NULL,
-                options = list(`live-search-style` = "startsWith" , `live-search` = TRUE),
+                options = list(`live-search-style` = "startsWith" , `live-search` = TRUE, `none-Selected-Text` = "Optional"),
                 multiple = T),
     div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("selectAllSubgroups"),"All Subgroups")),
     div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("deselectAllSubgroups"),"Clean Subgroups")),
@@ -210,7 +220,11 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     isLowerEfficacy <- fileInfo$isLowerEfficacy
     
     # get user Input
-    selectedDrugs <- twoDrugs.batch.drugServer("drugSelection_batch",dataset)
+    selectedFixedDrugAndDrugsToAdd <- twoDrugs.batch.drugServer("drugSelection_batch",dataset)
+    
+    selectedFixedDrug <- selectedFixedDrugAndDrugsToAdd$fixed_drug
+    
+    selectedDrugsToAdd <- selectedFixedDrugAndDrugsToAdd$drugs_to_add
 
     selectedCellLinesAndSubgroups <- twoDrugs.batch.cellLineServer("cellLineSelection_batch",dataset)
     
@@ -237,7 +251,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     #Rendering UI
     output$RAM_warning_placeholder <- renderUI({
       warning("Rendering UI")
-      if(RAM_Free_Ratio() < 0.3){
+      if(RAM_Free_Ratio() < min_RAM_free_ratio_to_start_future){
         wellPanel(
           p(HTML("<b>Due to high server usage, no further batch processing calculations can be initiated at this time. Please try again later. We apologize for the inconvenience.</b>"), style = "color:red") 
         )
@@ -247,7 +261,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     })
     
     observeEvent(RAM_Free_Ratio(),{
-      if(RAM_Free_Ratio() < 0.3){
+      if(RAM_Free_Ratio() < min_RAM_free_ratio_to_start_future){
         disable("button_batch")
       }else{
         enable("button_batch")
@@ -258,8 +272,8 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     computationResult <- eventReactive(input$button_batch,{
       validate(
         need(!is.null(dataset()), "Please upload your data"),
-        need(!is.null(selectedDrugs()), "Please select drugs"),
-        need(!length(selectedDrugs()) < 2, "Please select at least 2 drugs to combine"),
+        need(!is.null(selectedFixedDrug()), "Please select the first drug"),
+        need(!is.null(selectedDrugsToAdd()), "Please select drugs to add"),
         need(!is.null(selectedCellLines()), "Please select Cell lines")
       )
       
@@ -269,12 +283,6 @@ twoDrugs.batch.server <- function(id, fileInfo) {
         color = "#112446",
         text = "Calculating Efficacy"
       )
-      selected_drug <- selectedDrugs()
-      pairs <- lapply(1:(length(selected_drug)-1), function(i){
-        expand.grid(selected_drug[i], selected_drug[(i+1):length(selected_drug)],stringsAsFactors = F)
-      }) %>%
-        rbindlist()
-      
       if("seCol" %in% extraCol())
         eff_se_col = "Efficacy_SE"
       else
@@ -286,15 +294,39 @@ twoDrugs.batch.server <- function(id, fileInfo) {
       nSim <- nSim()
       comboscore <- checkedParameters$comboscore()
       averageDuplicate <- checkedParameters$averageDuplicate()
-      monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines() & dataset()$Drug %in% selectedDrugs(),]
+      monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines() & dataset()$Drug %in% c(selectedFixedDrug(),selectedDrugsToAdd()),]
+      fixedDrug <- selectedFixedDrug()
+      drugsToAdd <- selectedDrugsToAdd()
       
-      progress <- AsyncProgress$new(session, min = 0, max = nrow(pairs), message = "Initializing Calculation......")
+      progress <- AsyncProgress$new(session, min = 0, max = length(drugsToAdd), message = "Initializing Calculation......")
       future_result <- future(
         expr = {
         warning_msg <- ""
         collected_result <- NULL
-        progress$set(value = 0, message = paste0(0, " of ", nrow(pairs), " Combinations Complete..."))
-        for(i in 1:nrow(pairs)) {
+        progress$set(value = 0, message = paste0(0, " of ", length(drugsToAdd), " Combinations Complete..."))
+        for(i in 1:length(drugsToAdd)) {
+          #Checking if sufficient RAM exists to continue calculation
+          temp_ram <- memuse::Sys.meminfo()
+          temp_free_ram_ratio <- temp_ram$freeram/temp_ram$totalram
+          if(temp_free_ram_ratio <= min_RAM_free_ratio_within_future){
+            attempt <- 1
+            while(temp_free_ram_ratio <= min_RAM_free_ratio_within_future & attempt <= 10){
+              progress$set(value = i-1, message = paste0("WARNING: Server RAM low. Trying to continue...(Attempt ", attempt, " of 10)"))
+              Sys.sleep(10)
+              temp_ram <- memuse::Sys.meminfo()
+              temp_free_ram_ratio <- temp_ram$freeram/temp_ram$totalram
+              attempt <- attempt + 1
+            }
+            if(temp_free_ram_ratio > min_RAM_free_ratio_within_future){
+              progress$set(value = i-1, message = paste0(i-1, " of ", length(temp_conc_list), " Compounds Complete..."))
+            } else {
+              Aborted <- i-1
+              progress$set(value = i-1, message = "Aborting calculation...")
+              warning_msg <- paste0("WARNING: Calculation aborted after ", Aborted, " of ", length(temp_conc_list)," compounds complete. WARNING: Calculation failed. Please reload the web page and try again. Contact us if this problem persists.")
+              break
+            }
+          }
+          
           #get mono data
           ith_result <- withCallingHandlers(
             tryCatch(
@@ -307,8 +339,8 @@ twoDrugs.batch.server <- function(id, fileInfo) {
                   Efficacy_Column = "Efficacy",
                   LowerEfficacyIsBetterDrugEffect = isLowerEfficacy,
                   Efficacy_Metric_Name = efficacyMetric,
-                  Drug1 = as.character(pairs[i,1]),
-                  Drug2 = as.character(pairs[i,2]),
+                  Drug1 = fixedDrug,
+                  Drug2 = drugsToAdd[i],
                   Calculate_Uncertainty = uncertainty,
                   Efficacy_SE_Column = eff_se_col,
                   n_Simulations = nSim,
@@ -340,9 +372,12 @@ twoDrugs.batch.server <- function(id, fileInfo) {
             collected_result <- rbindlist(list(collected_result,ith_result))
           }
           rm(ith_result)
+          gc()
           progress$set(value = i, message = paste0(i, " of ", nrow(pairs), " Combinations Complete..."))
         }
         progress$close()
+        #if computation fail because of traffic in server RAM
+        
         if(nchar(warning_msg) == 0)
           warning_msg <- "No warning messages"
         return_value <- list(collected_result, warning_msg)

@@ -30,6 +30,11 @@ options(stringsAsFactors = FALSE)
 par3d(cex = 1)
 plan(multiprocess)
 
+#Defining control constants
+check_RAM_frequency <- 10 #RAM usage is checked every this many seconds
+min_RAM_free_ratio_to_start_future <- 0.0 #The minimum ratio of free ram / total ram that must be available to start a new future (i.e. RAM and CPU intensive) calculation
+min_RAM_free_ratio_within_future <- 1 #The minimum ratio of free ram / total ram that must be available for a future calculation to continue through it's loop
+
 # IDACombo Functionalities are implemented in each corresponding R file.
 source("dataset_import.R")
 source("two_drug.R")
