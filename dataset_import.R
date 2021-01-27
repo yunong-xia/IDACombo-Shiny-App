@@ -61,7 +61,8 @@ datasetInput <- function(id) {
 datasetServer <- function(id) {
   moduleServer(id, function(input, output, session) {
     fileInfo <- reactiveValues(dataset = NULL, extraCol = NULL, type = NULL, efficacyMetric = NULL, isLowerEfficacy = F)
-
+    
+    #loading preprovided dataset
     observeEvent(input$button, {
       show_modal_spinner(
         spin = "atom",
@@ -74,10 +75,11 @@ datasetServer <- function(id) {
       fileInfo$type <- "provided"
       fileInfo$efficacyMetric <- "Viability"
       fileInfo$isLowerEfficacy <- T
-      
+      fileInfo$cellLinesAndSubgroups <- distinct(preprovided_dataset[[input$providedDataSet]][, c("Cell_Line","Cell_Line_Subgroup")])
       remove_modal_spinner()
     })
-
+    
+    #loading custom dataset
     observeEvent(input$dataset, {
       inFile <- input$dataset
       if (is.null(inFile)) {
@@ -109,6 +111,12 @@ datasetServer <- function(id) {
       fileInfo$type <- "custom"
       fileInfo$efficacyMetric <- input$Master_efficacyMetric
       fileInfo$isLowerEfficacy <- input$Master_isLowerEfficacy
+      if ("Cell_Line_Subgroup" %in% headers) {
+        fileInfo$cellLinesAndSubgroups <- distinct(preprovided_dataset[[input$providedDataSet]][, c("Cell_Line","Cell_Line_Subgroup")])
+      }
+      else{
+        fileInfo$cellLinesAndSubgroups <- NULL
+      }
     })
 
     output$download <- downloadHandler(
@@ -144,6 +152,7 @@ datasetServer <- function(id) {
     )
 
     list(dataset = reactive(fileInfo$dataset), extraCol = reactive(fileInfo$extraCol), type = reactive(fileInfo$type),
+         cellLinesAndSubgroups = reactive(fileInfo$cellLinesAndSubgroups),
          efficacyMetric = reactive(fileInfo$efficacyMetric),
          isLowerEfficacy = reactive(fileInfo$isLowerEfficacy))
   })

@@ -22,144 +22,6 @@ twoDrugs.drugServer <- function(id, dataset) { #dataset is a reactive value
   })
 }
 
-#select cell lines
-twoDrugs.cellLineInput <- function(id) {
-  ns <- NS(id)
-  tagList(
-    pickerInput(ns("subgroups"),"Select Cell Lines By Subgroups",
-                choices = NULL,
-                options = list(`live-search-style` = "startsWith" , `live-search` = TRUE),
-                multiple = T),
-    div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("selectAllSubgroups"),"All Subgroups")),
-    div(style="display:inline-block;width:40%;text-align: center;",actionButton(ns("deselectAllSubgroups"),"Clean Subgroups")),
-    pickerInput(ns("cell_lines"),"Select Cell Lines",
-                choices = list(
-                  `Cancer Cell Lines` = NULL),
-                options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE,
-                               `selected-text-format`= "count",
-                               `count-selected-text` = "{0} subgroups chosen (on a total of {1})"),
-                multiple = T)
-  )
-}
-
-twoDrugs.cellLineServer <- function(id, dataset) {
-  moduleServer(id, function(input,output,session) {
-    
-    cl_sg_set <- reactive(
-      if(!is.null(dataset()))
-        distinct(dataset()[, c("Cell_Line","Cell_Line_Subgroup")])
-      else
-        NULL
-    )
-    
-    cell_line_choices <- reactive(
-      unique(cl_sg_set()$Cell_Line)
-    )
-    
-    subgroups_choices <- reactive(
-      unique(cl_sg_set()$Cell_Line_Subgroup)
-    )
-    
-    observeEvent(c(dataset()), {
-      updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
-                        choices = cell_line_choices())
-      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                        selected = NULL,
-                        choices = c("Custom",subgroups_choices()))
-    })
-    
-    prev_selected_cell_lines <- reactiveVal(value = NULL)
-    prev_selected_subgroups <- reactiveVal(value = NULL)
-    
-    observeEvent(input$subgroups, {
-      
-      if("Custom" %in% prev_selected_subgroups()) { ## Previously selected "Custom"
-        if("Custom" %in% input$subgroups && length(input$subgroups)>1) { ## now select other subgroups. 
-          new_subgroups <- setdiff(input$subgroups , "Custom")
-          new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
-          prev_selected_cell_lines(new_cell_lines)
-          prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
-                            selected = new_cell_lines,
-                            choices = cell_line_choices())
-          updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                            selected = new_subgroups,
-                            choices = c("Custom",subgroups_choices()))
-        }
-        else if(is.null(input$subgroups)){  # when users deselect "Custom"
-          prev_selected_cell_lines(NULL)
-          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
-                            selected = NULL,
-                            choices = cell_line_choices())
-        }
-        else {
-          #do nothing
-        }
-      }
-      else { ## Previously didn't select "Custom"
-        if("Custom" %in% input$subgroups) {  ## newly select "Custom"
-          prev_selected_subgroups("Custom")
-          updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                            selected = "Custom",
-                            choices = c("Custom",subgroups_choices()))
-        }
-        else { # just select other subgroups
-          new_subgroups <- input$subgroups
-          new_cell_lines <- cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% new_subgroups]
-          prev_selected_cell_lines(new_cell_lines)
-          prev_selected_subgroups(new_subgroups)
-          updatePickerInput(session, inputId = "cell_lines", label = "Select Cell Lines",
-                            selected = new_cell_lines,
-                            choices = cell_line_choices())
-          updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                            selected = new_subgroups,
-                            choices = c("Custom",subgroups_choices()))
-        }
-      }
-    }, ignoreNULL = F)
-    
-    observeEvent(input$selectAllSubgroups, {
-      prev_selected_subgroups(subgroups_choices())
-      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                        selected = subgroups_choices(),
-                        choices = c("Custom",subgroups_choices()))
-    })
-    
-    observeEvent(input$deselectAllSubgroups, {
-      prev_selected_subgroups(NULL)
-      updatePickerInput(session, inputId = "subgroups", label = "Select Cell Lines By Subgroups",
-                        selected = NULL,
-                        choices = c("Custom",subgroups_choices()))
-    })
-    
-    
-    observeEvent(input$cell_lines, {
-
-      if("Custom" %in% input$subgroups){
-        prev_selected_cell_lines(input$cell_lines)
-      }
-      else { 
-        # check whether the selected cell line match those subgroups.
-        if(!is.null(cl_sg_set()) && length(unique(cl_sg_set()$Cell_Line[cl_sg_set()$Cell_Line_Subgroup %in% input$subgroups ])) != length(input$cell_lines)){
-          prev_selected_cell_lines(input$cell_lines)
-          prev_selected_subgroups(input$subgroups)
-          updatePickerInput(session, inputId = "subgroups", 
-                            label = "Select Cell Lines By Subgroups",
-                            selected = "Custom",
-                            choices = c("Custom",subgroups_choices()))
-        }
-      }
-    }, ignoreNULL = F)
-    
-    
-    list(
-      cellLines = reactive(input$cell_lines),
-      subgroups = reactive(input$subgroups)
-    )
-    
-  })
-}
-
 
 #select dosages
 twoDrugs.doseInput <- function(id) {
@@ -276,7 +138,7 @@ twoDrugs.ui <- function(id) {
   tagList(
     box(width = 3, status = "primary", solidHeader = TRUE, title="2 Drugs Input",
         twoDrugs.drugInput(ns("drugSelection")),
-        twoDrugs.cellLineInput(ns("cellLineSelection")),
+        global.cellLineInput(ns("cellLineSelection")),
         twoDrugs.doseInput(ns("doseSelection")),
         tags$hr(),
         twoDrugs.parametersInput(ns("parametersCheck")),
@@ -306,6 +168,8 @@ twoDrugs.server <- function(id, fileInfo) {
     extraCol <- fileInfo$extraCol
     
     fileType <- fileInfo$type
+    
+    cellLinesAndSubgroups <- fileInfo$cellLinesAndSubgroups
   
     efficacyMetric <- fileInfo$efficacyMetric
     
@@ -313,7 +177,7 @@ twoDrugs.server <- function(id, fileInfo) {
     
     selectedDrugs <- twoDrugs.drugServer("drugSelection", dataset)
     
-    selectedCellLinesAndSubgroups <- twoDrugs.cellLineServer("cellLineSelection", dataset)
+    selectedCellLinesAndSubgroups <- global.cellLineServer("cellLineSelection", cellLinesAndSubgroups)
     
     selectedCellLines <- selectedCellLinesAndSubgroups$cellLines
     
