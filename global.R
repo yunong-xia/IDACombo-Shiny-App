@@ -28,12 +28,12 @@ options(shiny.maxRequestSize = 500 * 1024^2)
 options(stringsAsFactors = FALSE)
 
 par3d(cex = 1)
-plan(multiprocess)
+plan(multicore)
 
 
 check_RAM_frequency <- 10 #RAM usage is checked every this many seconds
-min_RAM_free_ratio_to_start_future <- 0.4 #The minimum ratio of free ram / total ram that must be available to start a new future (i.e. RAM and CPU intensive) calculation
-min_RAM_free_ratio_within_future <- 0.2 #The minimum ratio of free ram / total ram that must be available for a future calculation to continue through it's loop
+min_RAM_free_ratio_to_start_future <- 0#0.4 #The minimum ratio of free ram / total ram that must be available to start a new future (i.e. RAM and CPU intensive) calculation
+min_RAM_free_ratio_within_future <- 0#0.2 #The minimum ratio of free ram / total ram that must be available for a future calculation to continue through it's loop
 
 # IDACombo Functionalities are implemented in each corresponding R file.
 source("dataset_import.R")
@@ -53,10 +53,29 @@ preprovided_dataset <- list(
 
 names(preprovided_dataset) <- c("GDSC1","GDSC2","CTRPv2","PRISM Repurposing")
 
-
-
-
-
+#add two columns about csustained concentration information to the dataset
+for(i in seq_along(preprovided_dataset)){
+  #add a logical col to indicate whether the monotherapy of Csustained concentration
+  preprovided_dataset[[i]]$with_Csus_conc <- grepl("(Csustained)", preprovided_dataset[[i]]$Drug_Dose)
+  drugs_Csus_pairs <- distinct(preprovided_dataset[[i]][preprovided_dataset[[i]]$with_Csus_conc,c("Drug","Drug_Dose")])
+  drugs_Csus_pairs$Drug_Dose <- gsub("\\(Csustained\\) ","",drugs_Csus_pairs$Drug_Dose)
+  all_drugs <- unique(preprovided_dataset[[i]]$Drug)
+  Csus_for_all <- character(length(all_drugs))
+  for(j in seq_along(all_drugs)){
+    if(all_drugs[j] %in% drugs_Csus_pairs$Drug){
+      Csus_for_all[j] <- drugs_Csus_pairs$Drug_Dose[drugs_Csus_pairs$Drug == all_drugs[j]]
+    }
+    else{
+      Csus_for_all[j] <- Inf
+    }
+  }
+  Csus_for_each_row <- character(nrow(preprovided_dataset[[i]]))
+  for(j in seq_along(all_drugs)){
+    Csus_for_each_row[which(preprovided_dataset[[i]]$Drug == all_drugs[j])] <- Csus_for_all[j]
+  }
+  preprovided_dataset[[i]]$in_range <- preprovided_dataset[[i]]$Drug_Dose <= Csus_for_each_row
+  rm(all_drugs,Csus_for_all,drugs_Csus_pairs,Csus_for_each_row)
+}
 
 
 
@@ -163,3 +182,5 @@ global.cellLineServer <- function(id, cellLinesAndSubgroups) {
     
   })
 }
+
+

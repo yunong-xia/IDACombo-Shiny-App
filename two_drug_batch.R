@@ -12,15 +12,23 @@ twoDrugs.batch.drugInput <- function(id) {
     pickerInput(ns("drugs_to_add"),"Select drugs to add",
                 choices = NULL,
                 options = list(`actions-box` = TRUE,`live-search-style` = "startsWith" , `live-search` = TRUE),
-                multiple = T)
+                multiple = T),
+    checkboxInput(ns("use_no_Csus_drugs"),label = "Include drugs which do not have Csustained Concentration", value = TRUE)
   )
 }
 
 twoDrugs.batch.drugServer <- function(id, dataset) {
   moduleServer(id, function(input,output,session) {
     
-    observeEvent(dataset(), {
-      drug_choices <- unique(dataset()$Drug)
+    observeEvent(c(dataset(), input$use_no_Csus_drugs), {
+      #If checkbox value is FALSE, then provide drugs that have Csustained monotherapy data
+      if(input$use_no_Csus_drugs == FALSE && "with_Csus_conc" %in% names(dataset())){
+        drug_choices <- unique(dataset()$Drug[dataset()$with_Csus_conc])
+      }
+      #If TRUE, then provide all drugs
+      else{
+        drug_choices <- unique(dataset()$Drug)
+      }
       updatePickerInput(session, inputId = "fixed_drug", label = "Select the fixed drug",
                         choices = drug_choices)
       updatePickerInput(session, inputId = "drugs_to_add", label = "Select drugs to add",
@@ -34,6 +42,55 @@ twoDrugs.batch.drugServer <- function(id, dataset) {
   })
 }
 
+# 2Drug parameters and there helpers
+twoDrugs.batch.parametersInput <- function(id) {
+  ns <- NS(id)
+  tagList(
+    checkboxInput(ns("uncertainty"), "Calculate Uncertainty") %>%
+      helper(type = "inline",
+             title = "Calculate Uncertainty",
+             icon = "question-circle", colour = NULL,
+             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction.",
+             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+      ),
+    conditionalPanel(condition = "input.uncertainty", ns = ns,
+                     numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
+    checkboxInput(ns("comboscore"), "Calculate IDAComboscore And HazardRatios") %>%
+      helper(type = "inline",
+             title = "Calculate IDAComboscore And HazardRatios",
+             icon = "question-circle", colour = NULL,
+             content = "Should IDA-Comboscores and Hazard Ratios (HRs) be calculated between monotherapies and the drug combination? Note that these values are only meaningful when efficacy values are scaled between 0 and 1 (i.e. viability, normalized AUC, etc.).",
+             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+      ),
+    checkboxInput(ns("averageDuplicate"),"Average Duplicate Records", value = T) %>%
+      helper(type = "inline",
+             title = "Average Duplicate Records",
+             icon = "question-circle", colour = NULL,
+             content =  "Should duplicated records (i.e. where a cell line has multiple records for being tested with a given drug at a given concentration) should be averaged? If this option is not selected and duplicates are found, IDACombo will skip all except the first occurence of each duplicate.",
+             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+      ),
+    checkboxInput(ns("CsusRestrict"), "Only use concentration between 0 and Csustained", value = F) %>%
+      helper(type = "inline",
+             title = "Only use concentration between 0 and Csustained",
+             icon = "question-circle", colour = NULL,
+             content =  "Should restrict the analysis to only use concentrations from 0 up to Csustained for selected drugs that have Csustained available (would still use full concentration range for selected drugs that do not have Csustained available.",
+             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+      )
+  )
+}
+
+twoDrugs.batch.parametersServer <- function(id, fileType, isLowerEfficacy) {
+  moduleServer(id, function(input,output,session) {
+    
+    list(isLowerEfficacy = isLowerEfficacy,
+         uncertainty = reactive(input$uncertainty),
+         comboscore = reactive(input$comboscore),
+         averageDuplicate = reactive(input$averageDuplicate),
+         CsusRestrict = reactive(input$CsusRestrict),
+         nSim = reactive(input$nSimulation))
+  })
+}
+
 
 twoDrugs.batch.ui <- function(id) {
   ns <- NS(id) 
@@ -42,7 +99,7 @@ twoDrugs.batch.ui <- function(id) {
         twoDrugs.batch.drugInput(ns("drugSelection_batch")),
         global.cellLineInput(ns("cellLineSelection_batch")),
         tags$hr(),
-        twoDrugs.parametersInput(ns("parametersCheck_batch")),
+        twoDrugs.batch.parametersInput(ns("parametersCheck_batch")),
         tags$hr(),
         uiOutput(ns("RAM_warning_placeholder")),
         actionButton(ns("button_batch"), "RUN")
@@ -89,7 +146,7 @@ twoDrugs.batch.server <- function(id, fileInfo) {
     
     selectedSubgroups <- selectedCellLinesAndSubgroups$subgroups
 
-    checkedParameters <- twoDrugs.parametersServer("parametersCheck_batch", fileType, isLowerEfficacy)
+    checkedParameters <- twoDrugs.batch.parametersServer("parametersCheck_batch", fileType, isLowerEfficacy)
     
     nSim <- checkedParameters$nSim
     
@@ -155,6 +212,12 @@ twoDrugs.batch.server <- function(id, fileInfo) {
       fixedDrug <- selectedFixedDrug()
       drugsToAdd <- selectedDrugsToAdd()
       
+      #if restricted to analysis of conc in [0, Csustained]
+      if(checkedParameters$CsusRestrict() == TRUE){
+        monotherapy_data <- monotherapy_data %>%
+          filter(in_range == T)
+      }
+      
       progress <- AsyncProgress$new(session, min = 0, max = length(drugsToAdd), message = "Initializing Calculation......")
       future_result <- future(
         expr = {
@@ -175,11 +238,11 @@ twoDrugs.batch.server <- function(id, fileInfo) {
               attempt <- attempt + 1
             }
             if(temp_free_ram_ratio > min_RAM_free_ratio_within_future){
-              progress$set(value = i-1, message = paste0(i-1, " of ", length(temp_conc_list), " Compounds Complete..."))
+              progress$set(value = i-1, message = paste0(i-1, " of ", length(drugsToAdd), " Compounds Complete..."))
             } else {
               Aborted <- i-1
               progress$set(value = i-1, message = "Aborting calculation...")
-              warning_msg <- paste0("WARNING: Calculation aborted after ", Aborted, " of ", length(temp_conc_list)," compounds complete. WARNING: Calculation failed. Please reload the web page and try again. Contact us if this problem persists.")
+              warning_msg <- paste0("WARNING: Calculation aborted after ", Aborted, " of ", length(drugsToAdd)," compounds complete. WARNING: Calculation failed. Please reload the web page and try again. Contact us if this problem persists.")
               break
             }
           }

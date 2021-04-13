@@ -54,6 +54,7 @@ twoDrugs.doseServer <- function(id, dataset, fileType,selectedDrug1, selectedDru
       dose1_choices <- sort(unique(data$Drug_Dose[data$Drug == drug1 & data$Cell_Line %in% shared_cls]))
       dose2_choices <- sort(unique(data$Drug_Dose[data$Drug == drug2 & data$Cell_Line %in% shared_cls]))
       
+      #make sure fileType() is not null. Since at the beginning, nothing is selected.
       if(length(fileType()) != 0 && fileType() == "provided"){
         Csustained_conc1 <- as.numeric(gsub("\\(Csustained\\) ","",dose1_choices[grep("\\(Csustained\\) ",dose1_choices)]))
         Csustained_conc2 <- as.numeric(gsub("\\(Csustained\\) ","",dose2_choices[grep("\\(Csustained\\) ",dose2_choices)]))

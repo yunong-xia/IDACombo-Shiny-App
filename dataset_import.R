@@ -106,6 +106,27 @@ datasetServer <- function(id) {
         need(length(missedCol) == 0, paste0("Warning: Missing required column(s) : ", paste(missedCol, collapse = " ")))
       )
       
+      # add two columns of information about Csustained concentration
+      content$with_Csus_conc <- grepl("(Csustained)", content$Drug_Dose)
+      drugs_Csus_pairs <- distinct(content[content$with_Csus_conc,c("Drug","Drug_Dose")])
+      drugs_Csus_pairs$Drug_Dose <- gsub("\\(Csustained\\) ","",drugs_Csus_pairs$Drug_Dose)
+      all_drugs <- unique(content$Drug)
+      Csus_for_all <- character(length(all_drugs))
+      for(j in seq_along(all_drugs)){
+        if(all_drugs[j] %in% drugs_Csus_pairs$Drug){
+          Csus_for_all[j] <- drugs_Csus_pairs$Drug_Dose[drugs_Csus_pairs$Drug == all_drugs[j]]
+        }
+        else{
+          Csus_for_all[j] <- Inf
+        }
+      }
+      Csus_for_each_row <- character(nrow(content))
+      for(j in seq_along(all_drugs)){
+        Csus_for_each_row[which(content$Drug == all_drugs[j])] <- Csus_for_all[j]
+      }
+      content$in_range <- content$Drug_Dose <= Csus_for_each_row
+      
+      
       fileInfo$dataset <- content
       fileInfo$extraCol <- extraCol
       fileInfo$type <- "custom"

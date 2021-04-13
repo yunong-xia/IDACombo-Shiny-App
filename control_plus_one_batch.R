@@ -1,17 +1,27 @@
 # control treatment
 controlPlusOne.batch.controlTreatmentInput <- function(id) {
   ns <- NS(id)
-  pickerInput(ns("drugs"), "Select Drug(s) in Control Treatment",
-              choices = NULL,
-              options = list(`live-search-style` = "contains", `live-search` = TRUE, "max-options" = 5, "max-options-text" = "Maximum Number of Drugs Selected"),
-              multiple = T
+  tagList(
+    pickerInput(ns("drugs"), "Select Drug(s) in Control Treatment",
+                choices = NULL,
+                options = list(`live-search-style` = "contains", `live-search` = TRUE, "max-options" = 5, "max-options-text" = "Maximum Number of Drugs Selected"),
+                multiple = T
+    ),
+    checkboxInput(ns("use_no_Csus_drugs"),label = "Include drugs which do not have Csustained Concentration", value = TRUE)
   )
 }
 
 controlPlusOne.batch.controlTreatmentServer <- function(id, dataset) {
   moduleServer(id, function(input, output, session) {
-    observeEvent(dataset(), {
-      drug_choices <- unique(dataset()$Drug)
+    observeEvent(c(dataset(), input$use_no_Csus_drugs), {
+      #If checkbox value is FALSE, then provide drugs that have Csustained monotherapy data
+      if(input$use_no_Csus_drugs == FALSE && "with_Csus_concc" %in% names(dataset())){
+        drug_choices <- unique(dataset()$Drug[dataset()$with_Csus_conc])
+      }
+      #If TRUE, then provide all drugs
+      else{
+        drug_choices <- unique(dataset()$Drug)
+      }
       updatePickerInput(session,
                         inputId = "drugs", label = "Select Drug(s) in Control Treatment",
                         choices = drug_choices
@@ -70,7 +80,7 @@ controlPlusOne.batch.doseServer <- function(id, dataset, fileType, selectedContr
 # plusOne treatment
 controlPlusOne.batch.drugToAddInput <- function(id) {
   ns <- NS(id)
-  pickerInput(ns("drugToAdd"), label = "Drug to Add (Multiple Drugs)", choices = NULL, multiple = T,
+  pickerInput(ns("drugToAdd"), label = "Drugs to Add (Multiple Drugs)", choices = NULL, multiple = T,
               options = list(
                 `actions-box` = TRUE, `live-search-style` = "startsWith", `live-search` = TRUE,
                 `selected-text-format` = "count",
@@ -84,7 +94,7 @@ controlPlusOne.batch.drugToAddServer <- function(id, dataset, selectedControlTre
     observeEvent(c(dataset(), selectedControlTreatment()), {
       to_add_choices <- setdiff(unique(dataset()$Drug), selectedControlTreatment())
       updatePickerInput(session,
-                        inputId = "drugToAdd", label = "Drug to Add",
+                        inputId = "drugToAdd", label = "Drugs to Add (Multiple Drugs)",
                         choices = to_add_choices
       )
     })
@@ -122,6 +132,13 @@ controlPlusOne.batch.parametersInput <- function(id) {
              icon = "question-circle", colour = NULL,
              content =  "Should duplicated records (i.e. where a cell line has multiple records for being tested with a given drug at a given concentration) should be averaged? If this option is not selected and duplicates are found, IDACombo will skip all except the first occurence of each duplicate.",
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
+      ),
+    checkboxInput(ns("CsusRestrict"), "Only use concentration between 0 and Csustained", value = F) %>%
+      helper(type = "inline",
+             title = "Only use concentration between 0 and Csustained",
+             icon = "question-circle", colour = NULL,
+             content =  "Should restrict the analysis to only use concentrations from 0 up to Csustained for selected drugs that have Csustained available (would still use full concentration range for selected drugs that do not have Csustained available.",
+             buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       )
   )
 }
@@ -134,6 +151,7 @@ controlPlusOne.batch.parametersServer <- function(id, fileType, isLowerEfficacy)
       uncertainty = reactive(input$uncertainty),
       comboscore = reactive(input$comboscore),
       averageDuplicate = reactive(input$averageDuplicate),
+      CsusRestrict = reactive(input$CsusRestrict),
       nSim = reactive(input$nSimulation)
     )
   })
@@ -254,6 +272,13 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
         text = "Calculating Efficacy"
       )
       monotherapy_data <- dataset()[dataset()$Cell_Line %in% selectedCellLines() & dataset()$Drug %in% c(selectedDrugToAdd(), selectedControlTreatment()), ]
+      
+      #if restricted to analysis of conc in [0, Csustained]
+      #we only need to restrict drugs to add.
+      if(checkedParameters$CsusRestrict() == TRUE){
+        monotherapy_data <- monotherapy_data[monotherapy_data$in_range | monotherapy_data$Drug %in% selectedControlTreatment(),]
+      }
+      
       isLowerEfficacyBetter <- checkedParameters$isLowerEfficacy()
       metricName <- efficacyMetric()
       controlTreatment <- selectedControlTreatment()
