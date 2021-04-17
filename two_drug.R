@@ -209,10 +209,12 @@ twoDrugs.server <- function(id, fileInfo) {
       )
       select1<-filter(dataset(),
                       Drug == selectedDrugs$d1(),
-                      Drug_Dose %in% selectedDose$dose1())
+                      Drug_Dose %in% selectedDose$dose1(),
+                      Cell_Line %in% selectedCellLines())
       select2<-filter(dataset(),
                       Drug == selectedDrugs$d2(),
-                      Drug_Dose %in% selectedDose$dose2())
+                      Drug_Dose %in% selectedDose$dose2(),
+                      Cell_Line %in% selectedCellLines())
 
       
       monotherapy_data <- rbindlist(list(select1,select2))

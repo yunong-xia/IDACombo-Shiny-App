@@ -225,7 +225,8 @@ controlPlusOne.server <- function(id, fileInfo) {
       nSimulation <- nSim()
       calculateComboscoreAndHazardRatio <- checkedParameters$comboscore()
       averageDuplicateRecords <- checkedParameters$averageDuplicate()
-      data <- dataset()
+      data <- dataset() %>%
+        filter(Cell_Line %in% selectedCellLines())
       file_type <- fileType()
       
       future_result <- future({

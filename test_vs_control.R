@@ -257,7 +257,8 @@ testVsControl.server <- function(id, fileInfo) {
       nSimulation <- nSim()
       calculateHazardRatio <- checkedParameters$hazardRatio()
       averageDuplicateRecords <- checkedParameters$averageDuplicate()
-      data <- dataset()
+      data <- dataset() %>%
+        filter(Cell_Line %in% selectedCellLines())
       future_result <- future(
         global = c("isLowerEfficacyBetter","metricName","controlDrugs","controlDoses","testDrugs","testDoses","calculateUncertainty","nSimulation","calculateHazardRatio","averageDuplicateRecords","data", "eff_se_col"),
         packages = c("IDACombo", "ggplot2","data.table","gridExtra"),
