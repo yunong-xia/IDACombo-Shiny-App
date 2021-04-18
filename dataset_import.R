@@ -50,7 +50,8 @@ datasetInput <- function(id) {
             "text/comma-separated-values,text/plain",
             ".tsv"
           )
-        )
+        ),
+        uiOutput(ns("custom_dataset_input_warning_placeholder"))
       )
     )
   )
@@ -79,6 +80,8 @@ datasetServer <- function(id) {
       remove_modal_spinner()
     })
     
+    custom_dataset_warning_msg <- reactiveVal(NULL)
+    
     #loading custom dataset
     observeEvent(input$dataset, {
       inFile <- input$dataset
@@ -90,7 +93,7 @@ datasetServer <- function(id) {
         color = "firebrick",
         text = "Loading dataset..."
       )
-      content <- read.delim(input$dataset$datapath)
+      content <- fread(input$dataset$datapath)
       remove_modal_spinner()
       headers <- names(content)
       extraCol <- NULL
@@ -102,10 +105,11 @@ datasetServer <- function(id) {
         extraCol <- c(extraCol, "subCol")
       }
       missedCol <- setdiff(fixedHeaderNames, headers)
-      validate(
-        need(length(missedCol) == 0, paste0("Warning: Missing required column(s) : ", paste(missedCol, collapse = " ")))
-      )
-      
+      #send warning message
+      if(length(missedCol) != 0){
+        custom_dataset_warning_msg(paste0("Warning: Missing required column(s) : ", paste(missedCol, collapse = " ")))
+        return(NULL)
+      }
       # add two columns of information about Csustained concentration
       content$with_Csus_conc <- grepl("(Csustained)", content$Drug_Dose)
       drugs_Csus_pairs <- distinct(content[content$with_Csus_conc,c("Drug","Drug_Dose")])
@@ -125,7 +129,6 @@ datasetServer <- function(id) {
         Csus_for_each_row[which(content$Drug == all_drugs[j])] <- Csus_for_all[j]
       }
       content$in_range <- content$Drug_Dose <= Csus_for_each_row
-      
       
       fileInfo$dataset <- content
       fileInfo$extraCol <- extraCol
@@ -171,6 +174,17 @@ datasetServer <- function(id) {
         write.table(df, file, sep = "\t", col.names = TRUE, row.names = FALSE, quote = FALSE)
       }
     )
+    
+    output$custom_dataset_input_warning_placeholder <- renderUI({
+      warning("Rendering UI")
+      if(is.null(custom_dataset_warning_msg())){
+        return(NULL)
+      }else{
+        wellPanel(
+          p(HTML(paste0("<b>",custom_dataset_warning_msg(),". Please strictly follow the instructions","</b>")), style = "color:red") 
+        )
+      }
+    })
 
     list(dataset = reactive(fileInfo$dataset), extraCol = reactive(fileInfo$extraCol), type = reactive(fileInfo$type),
          cellLinesAndSubgroups = reactive(fileInfo$cellLinesAndSubgroups),
