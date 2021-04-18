@@ -93,7 +93,7 @@ datasetServer <- function(id) {
         color = "firebrick",
         text = "Loading dataset..."
       )
-      content <- fread(input$dataset$datapath)
+      content <- read.delim(input$dataset$datapath)
       remove_modal_spinner()
       headers <- names(content)
       extraCol <- NULL
