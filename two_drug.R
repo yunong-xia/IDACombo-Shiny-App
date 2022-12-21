@@ -77,9 +77,9 @@ twoDrugs.doseServer <- function(id, dataset, fileType,selectedDrug1, selectedDru
       }
       
       updatePickerInput(session, inputId = "dose1", label = "Drug dose available for drug 1 (Multiple)",
-                        choices = dose1_choices)
+                        choices = dose1_choices, selected = dose1_choices)
       updatePickerInput(session, inputId = "dose2", label = "Drug dose available for drug 2 (Multiple)",
-                        choices = dose2_choices)
+                        choices = dose2_choices, selected = dose2_choices)
     })
     
     
@@ -99,12 +99,12 @@ twoDrugs.parametersInput <- function(id) {
       helper(type = "inline",
              title = "Calculate Uncertainty",
              icon = "question-circle", colour = NULL,
-             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction.",
+             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction. For custom datasets, this option only works if an Efficacy_SE column was provided with the file.",
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
              ),
     conditionalPanel(condition = "input.uncertainty", ns = ns,
                      numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
-    checkboxInput(ns("comboscore"), "Calculate IDAComboscore And HazardRatios") %>%
+    checkboxInput(ns("comboscore"), "Calculate IDAComboscore And HazardRatios", value = T) %>%
       helper(type = "inline",
              title = "Calculate IDAComboscore And HazardRatios",
              icon = "question-circle", colour = NULL,
@@ -147,12 +147,12 @@ twoDrugs.ui <- function(id) {
         actionButton(ns("button"), "RUN")
     ),
     box(width = 9, status = "primary", solidHeader = TRUE, title="2Drug Result",
-        downloadButton(ns('downloadData'), 'Download DataTable'),
         downloadButton(ns('downloadPlot'), 'Download 3D Plot'),
+        downloadButton(ns('downloadData'), 'Download DataTable'),
         downloadButton(ns('downloadLog'), 'Download Log File'),
         conditionalPanel(condition = "input.button",ns = ns, tabsetPanel(type = "tabs",
-                                                                         tabPanel("Table", withSpinner(dataTableOutput(ns("table")))),
                                                                          tabPanel("3dPlot", withSpinner(rglwidgetOutput(ns("plot"),  width = 400, height = 400))),
+                                                                         tabPanel("Table", withSpinner(dataTableOutput(ns("table")))),
                                                                          tabPanel('Log', withSpinner(verbatimTextOutput(ns('log')))))  
         )
     )
@@ -209,11 +209,11 @@ twoDrugs.server <- function(id, fileInfo) {
       )
       select1<-filter(dataset(),
                       Drug == selectedDrugs$d1(),
-                      Drug_Dose %in% selectedDose$dose1(),
+                      Drug_Dose %in% c(0,selectedDose$dose1()),
                       Cell_Line %in% selectedCellLines())
       select2<-filter(dataset(),
                       Drug == selectedDrugs$d2(),
-                      Drug_Dose %in% selectedDose$dose2(),
+                      Drug_Dose %in% c(0,selectedDose$dose2()),
                       Cell_Line %in% selectedCellLines())
 
       
@@ -228,6 +228,9 @@ twoDrugs.server <- function(id, fileInfo) {
       d1 <- selectedDrugs$d1()
       d2 <- selectedDrugs$d2()
       uncertainty <- checkedParameters$uncertainty()
+      if(is.null(eff_se_col)){
+        uncertainty <- FALSE #preventing user from trying to calculate uncertainties without SE col, would like to put warning about this somewhere, but not sure best way to do that.
+      }
       nSim <- nSim()
       comboscore <- checkedParameters$comboscore()
       averageDuplicate <- checkedParameters$averageDuplicate()

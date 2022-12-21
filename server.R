@@ -27,4 +27,9 @@ shinyServer(function(input, output, session) {
   testVsControl.server("testVsControl", fileInfo)
 
   testVsControl.batch.server("testVsControlBatch", fileInfo)
+  
+  observe({
+    header <- paste0("Selected Dataset: <B>", fileInfo$name(), "</B>, Dose unit: <B>", fileInfo$doseUnit(), "</B>")
+    shinyjs::html("pageHeader", header)
+  })
 })

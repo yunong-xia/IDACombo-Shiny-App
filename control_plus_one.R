@@ -96,12 +96,12 @@ controlPlusOne.parametersInput <- function(id) {
       helper(type = "inline",
              title = "Calculate Uncertainty",
              icon = "question-circle", colour = NULL,
-             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction.",
+             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction. For custom datasets, this option only works if an Efficacy_SE column was provided with the file.",
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
     conditionalPanel(condition = "input.uncertainty", ns = ns,
                      numericInput(inputId = ns("nSimulation"), label = "Number of random samples to be drawn when calculating output efficacy prediction uncertainties", value = 1000, min = 40, max = 5000)),
-    checkboxInput(ns("comboscore"), "Calculate IDAComboscore And HazardRatios") %>%
+    checkboxInput(ns("comboscore"), "Calculate IDAComboscore And HazardRatios", value = T) %>%
       helper(type = "inline",
              title = "Calculate IDAComboscore And HazardRatios",
              icon = "question-circle", colour = NULL,
@@ -151,13 +151,13 @@ controlPlusOne.ui <- function(id) {
     ),
     box(
       width = 9, status = "primary", solidHeader = TRUE, title = "Control Plus One Result",
-      downloadButton(ns("downloadData"), "Download DataTable"),
       downloadButton(ns('downloadPlot'), 'Download Plot(s)'),
+      downloadButton(ns("downloadData"), "Download DataTable"),
       downloadButton(ns('downloadLog'), 'Download Log File'),
       conditionalPanel(condition = "input.button", ns = ns, tabsetPanel(
         type = "tabs",
-        tabPanel("Table", withSpinner(dataTableOutput(ns("table")))),
         tabPanel("Plot", plotOutput(ns("plot"),  width = "100%", height = "400px")),
+        tabPanel("Table", withSpinner(dataTableOutput(ns("table")))),
         tabPanel('Log', withSpinner(verbatimTextOutput(ns('log'))))
       ))
     )
@@ -222,6 +222,9 @@ controlPlusOne.server <- function(id, fileInfo) {
       dose <- selectedDose()
       drugToAdd <- selectedDrugToAdd()
       calculateUncertainty <- checkedParameters$uncertainty()
+      if(is.null(eff_se_col)){
+        calculateUncertainty <- FALSE #preventing user from trying to calculate uncertainties without SE col, would like to put warning about this somewhere, but not sure best way to do that.
+      }
       nSimulation <- nSim()
       calculateComboscoreAndHazardRatio <- checkedParameters$comboscore()
       averageDuplicateRecords <- checkedParameters$averageDuplicate()
