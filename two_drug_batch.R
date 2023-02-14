@@ -224,228 +224,275 @@ twoDrugs.batch.server <- function(id, fileInfo) {
           filter(in_range == T)
       }
       
-      progress <- AsyncProgress$new(session, min = 0, max = length(drugsToAdd), message = "Initializing Calculation......")
-      future_result <- future(
-        expr = {
-        warning_msg <- ""
-        collected_result <- NULL
-        progress$set(value = 0, message = paste0(0, " of ", length(drugsToAdd), " Combinations Complete..."))
-        for(i in 1:length(drugsToAdd)) {
-          #Checking if sufficient RAM exists to continue calculation
-          temp_ram <- memuse::Sys.meminfo()
-          temp_free_ram_ratio <- temp_ram$freeram/temp_ram$totalram
-          if(temp_free_ram_ratio <= min_RAM_free_ratio_within_future){
-            attempt <- 1
-            while(temp_free_ram_ratio <= min_RAM_free_ratio_within_future & attempt <= 10){
-              progress$set(value = i-1, message = paste0("WARNING: Server RAM low. Trying to continue...(Attempt ", attempt, " of 10)"))
-              Sys.sleep(10)
+      #Creating progress bar
+        progress <- AsyncProgress$new(session, min = 0, max = length(drugsToAdd), message = "Initializing Calculation......", millis = 1000)
+      
+      #Running batch analysis using cluster
+        future_result <- future(
+          global = c("monotherapy_data", "progress", "min_RAM_free_ratio_within_future", "isLowerEfficacy",
+                     "efficacyMetric", "fixedDrug", "drugsToAdd", "uncertainty", "nSim",
+                     "comboscore", "averageDuplicate", "currentFileType", "eff_se_col"),
+          packages = c("IDACombo", "memuse", "ggplot2"),
+          lazy = FALSE,
+          seed = TRUE,
+          gc = TRUE,
+          expr = {
+          warning_msg <- ""
+          collected_result <- NULL
+          
+          #Starting progress bar count
+            progress$set(value = 0, message = paste0(0, " of ", length(drugsToAdd), " Combinations Complete..."))
+          
+          #Doing calculations for each drug combo in parallel
+            collected_result <- foreach(i = seq_along(drugsToAdd)) %do% {
+              #Checking if sufficient RAM exists to continue calculation
               temp_ram <- memuse::Sys.meminfo()
               temp_free_ram_ratio <- temp_ram$freeram/temp_ram$totalram
-              attempt <- attempt + 1
-            }
-            if(temp_free_ram_ratio > min_RAM_free_ratio_within_future){
-              progress$set(value = i-1, message = paste0(i-1, " of ", length(drugsToAdd), " Compounds Complete..."))
-            } else {
-              Aborted <- i-1
-              progress$set(value = i-1, message = "Aborting calculation...")
-              warning_msg <- paste0("WARNING: Calculation aborted after ", Aborted, " of ", length(drugsToAdd)," compounds complete. WARNING: Calculation failed. Please reload the web page and try again. Contact us if this problem persists.")
-              break
-            }
-          }
-          
-          #get mono data
-          ith_result <- withCallingHandlers(
-            tryCatch(
-              expr = {
-                res <- IDAPredict.2drug(
-                  Monotherapy_Data = monotherapy_data,
-                  Cell_Line_Name_Column = "Cell_Line",
-                  Drug_Name_Column = "Drug",
-                  Drug_Concentration_Column = "Drug_Dose",
-                  Efficacy_Column = "Efficacy",
-                  LowerEfficacyIsBetterDrugEffect = isLowerEfficacy,
-                  Efficacy_Metric_Name = efficacyMetric,
-                  Drug1 = fixedDrug,
-                  Drug2 = drugsToAdd[i],
-                  Calculate_Uncertainty = uncertainty,
-                  Efficacy_SE_Column = eff_se_col,
-                  n_Simulations = nSim,
-                  Calculate_IDAcomboscore_And_Hazard_Ratio = comboscore,
-                  Average_Duplicate_Records = averageDuplicate
-                )
-                if(!is.data.frame(res[[1]])){
-                  NULL
-                } else{
-                  orgnaized_res <- cbind(
-                    Drug1 = res$Drug1,
-                    Drug2 = res$Drug2,
-                    res$Efficacy_Predictions,
-                    Cell_Lines_Used = paste(res$Cell_Lines_Used, collapse = ", "),
-                    Number_of_Cell_Line_Used = length(res$Cell_Lines_Used))
-                  rm(res)
-                  orgnaized_res
+              if(temp_free_ram_ratio <= min_RAM_free_ratio_within_future){
+                attempt <- 1
+                while(temp_free_ram_ratio <= min_RAM_free_ratio_within_future & attempt <= 10){
+                  progress$set(value = i-1, message = paste0("WARNING: Server RAM low. Trying to continue...(Attempt ", attempt, " of 10)"))
+                  Sys.sleep(10)
+                  temp_ram <- memuse::Sys.meminfo()
+                  temp_free_ram_ratio <- temp_ram$freeram/temp_ram$totalram
+                  attempt <- attempt + 1
                 }
-              }),
-            warning = function(w) { #warning handling. This won't halt the computation. It only collect warning message.
-              warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
-              invokeRestart("muffleWarning")
-            }
-          )
+                if(temp_free_ram_ratio > min_RAM_free_ratio_within_future){
+                  progress$set(value = i-1, message = paste0(i-1, " of ", length(drugsToAdd), " Compounds Complete..."))
+                } else {
+                  Aborted <- i-1
+                  progress$set(value = i-1, message = "Aborting calculation...")
+                  warning_msg <- paste0("WARNING: Calculation aborted after ", Aborted, " of ", length(drugsToAdd)," compounds complete. WARNING: Calculation failed. Please reload the web page and try again. Contact us if this problem persists.")
+                  break
+                }
+              }
+              
+              #get mono data
+              ith_result <- withCallingHandlers(
+                tryCatch(
+                  expr = {
+                    res <- IDAPredict.2drug(
+                      Monotherapy_Data = monotherapy_data,
+                      Cell_Line_Name_Column = "Cell_Line",
+                      Drug_Name_Column = "Drug",
+                      Drug_Concentration_Column = "Drug_Dose",
+                      Efficacy_Column = "Efficacy",
+                      LowerEfficacyIsBetterDrugEffect = isLowerEfficacy,
+                      Efficacy_Metric_Name = efficacyMetric,
+                      Drug1 = fixedDrug,
+                      Drug2 = drugsToAdd[i],
+                      Calculate_Uncertainty = uncertainty,
+                      Efficacy_SE_Column = eff_se_col,
+                      n_Simulations = nSim,
+                      Calculate_IDAcomboscore_And_Hazard_Ratio = comboscore,
+                      Average_Duplicate_Records = averageDuplicate
+                    )
+                    if(!is.data.frame(res[[1]])){
+                      NULL
+                    } else{
+                      res <- cbind(
+                        Drug1 = res$Drug1,
+                        Drug2 = res$Drug2,
+                        res$Efficacy_Predictions,
+                        Cell_Lines_Used = paste(res$Cell_Lines_Used, collapse = ", "),
+                        Number_of_Cell_Line_Used = length(res$Cell_Lines_Used))
+                      res
+                    }
+                  }),
+                warning = function(w) { #warning handling. This won't halt the computation. It only collect warning message.
+                  warning_msg <<- paste0(warning_msg, paste0(Sys.Date(),": ",conditionMessage(w),"\n"))
+                  invokeRestart("muffleWarning")
+                }
+              )
+              progress$set(value = i, message = paste0(i, " of ", length(drugsToAdd), " Combinations Complete..."))
+              return(ith_result)
+            } #END: collected_result <- foreach(i = seq_along(drugsToAdd)) %do% {
+            
+          #Updating progress to show calculations are complete and data is being collected.
+            progress$set(value = length(drugsToAdd), message = "Organizing Results...")
+            
+          #Collapsing list to a data frame
+            collected_result <- as.data.frame(do.call(rbind, collected_result))
+
+          #Making plots
           if(is.null(collected_result)){
-            collected_result <- ith_result
-          }
-          else{
-            collected_result <- rbindlist(list(collected_result,ith_result))
-          }
-          rm(ith_result)
-          gc()
-          progress$set(value = i, message = paste0(i, " of ", nrow(pairs), " Combinations Complete..."))
-        }
-        progress$close()
-        #if computation fail because of traffic in server RAM
-        
-        
-        #Making plots
-          if(comboscore & ! is.null(collected_result)){
-              print(collected_result)
-            #Adding MaxHR to results
-              collected_result$MaxHR <- pmax(collected_result$HR_vs_Drug1, collected_result$HR_vs_Drug2)
-              if(uncertainty){
-                collected_result$`MaxHR_95%_Confidence_Interval` <- collected_result$`HR_vs_Drug1_95%_Confidence_Interval`
-                collected_result$`MaxHR_95%_Confidence_Interval`[collected_result$MaxHR == collected_result$HR_vs_Drug2] <- collected_result$`HR_vs_Drug2_95%_Confidence_Interval`[collected_result$MaxHR == collected_result$HR_vs_Drug2]
-              }
+              pnull <- ggplot(data.frame()) + geom_point() + xlim(0, 10) + ylim(0, 1) +
+                       annotate(geom="text", x=5, y=0.5, label="No plottable results produced.\nPlease see error log or contact\napp developers for help.", size= 9)
+              plots <- list(pnull)
+            } else {
               
-            #Subsetting to data at max doses of all drugs
-              fixedDrug_doses <- unique(collected_result$Drug1Dose)
-              clean_fixedDrug_doses <- fixedDrug_doses
-              if(length(currentFileType) != 0 && currentFileType == "provided"){
-                clean_fixedDrug_doses <- as.numeric(gsub("\\(Csustained\\) ", "", fixedDrug_doses))
-              }
-              max_dose_selected_drug <- fixedDrug_doses[which.max(clean_fixedDrug_doses)]
-              
-              drugs_added <- sort(unique(c(collected_result$Drug1, collected_result$Drug2)))
-              max_dose_drugs_added <- rep(NA, length(drugs_added))
-              for(i in 1:length(drugs_added)){
-                temp_doses <- collected_result$Drug2Dose[collected_result$Drug2 == drugs_added[i]]
-                clean_temp_doses <- temp_doses
-                if(length(currentFileType) != 0 && currentFileType == "provided"){
-                  clean_temp_doses <- as.numeric(gsub("\\(Csustained\\) ", "", temp_doses))
+              if(comboscore){
+                #Determining which drugs could successfully be added to control treatment
+                  Added_Drugs <- unique(collected_result$Drug2)
+                  warning(paste0(Added_Drugs, collapse = ", "))
+                #Adding MaxHR to results
+                  collected_result$MaxHR <- pmax(collected_result$HR_vs_Drug1, collected_result$HR_vs_Drug2)
+                  if(uncertainty){
+                    collected_result$`MaxHR_95%_Confidence_Interval` <- collected_result$`HR_vs_Drug1_95%_Confidence_Interval`
+                    collected_result$`MaxHR_95%_Confidence_Interval`[collected_result$MaxHR == collected_result$HR_vs_Drug2] <- collected_result$`HR_vs_Drug2_95%_Confidence_Interval`[collected_result$MaxHR == collected_result$HR_vs_Drug2]
+                  }
+                  
+                #Subsetting to data at max doses of all drugs
+                  fixedDrug_doses <- unique(collected_result$Drug1Dose)
+                  clean_fixedDrug_doses <- fixedDrug_doses
+                  if(length(currentFileType) != 0 && currentFileType == "provided"){
+                    clean_fixedDrug_doses <- as.numeric(gsub("\\(Csustained\\) ", "", fixedDrug_doses))
+                  }
+                  max_dose_selected_drug <- fixedDrug_doses[which.max(clean_fixedDrug_doses)]
+                  
+                  max_dose_Added_Drugs <- rep(NA, length(Added_Drugs))
+                  for(i in 1:length(Added_Drugs)){
+                    temp_doses <- collected_result$Drug2Dose[collected_result$Drug2 == Added_Drugs[i]]
+                    clean_temp_doses <- temp_doses
+                    if(length(currentFileType) != 0 && currentFileType == "provided"){
+                      clean_temp_doses <- as.numeric(gsub("\\(Csustained\\) ", "", temp_doses))
+                    }
+                    max_dose_Added_Drugs[i] <- temp_doses[which.max(clean_temp_doses)]
+                  }
+                  print("C")
+                  max_dose_data <- NULL
+                  for(i in 1:length(Added_Drugs)){
+                    max_dose_data <- rbind(max_dose_data, collected_result[collected_result$Drug1Dose == max_dose_selected_drug & collected_result$Drug2 == Added_Drugs[i] & collected_result$Drug2Dose == max_dose_Added_Drugs[i],])
+                  }
+      
+                #Finding top 10 IDAComboscores
+                  top_10_comboscore <- max_dose_data[order(max_dose_data$IDA_Comboscore, decreasing = TRUE),][1:min(10,length(Added_Drugs)),]
+                  top_10_comboscore$Drug2 <- factor(top_10_comboscore$Drug2, levels = top_10_comboscore$Drug2)
+                #Finding top 10 MaxHR
+                  top_10_MaxHR <- max_dose_data[order(max_dose_data$MaxHR, decreasing = FALSE),][1:min(10,length(Added_Drugs)),]
+                  top_10_MaxHR$Drug2 <- factor(top_10_MaxHR$Drug2, levels = top_10_MaxHR$Drug2)
+      
+                p1 <- ggplot(data = top_10_comboscore, aes(x = Drug2, y = IDA_Comboscore)) +
+                      geom_bar(stat="identity") +
+                      xlab("") +
+                      ylab("IDAComboscore") +
+                      ggtitle("Top 10 IDAComboscores at Max Concentration of Each Selected Compound") +
+                      theme(axis.text.x = element_text(angle = 60, size = 12, hjust = 1))
+    
+                p2 <- ggplot(data = top_10_MaxHR, aes(x = Drug2, y = MaxHR)) +
+                      geom_bar(stat = "identity") +
+                      xlab("") +
+                      ylab("Maximum Hazard Ratio") +
+                      ggtitle("Lowest 10 MaxHRs at Max Concentration of Each Selected Compound") +
+                      theme(axis.text.x = element_text(angle = 60, size = 12, hjust = 1))
+    
+                if(uncertainty){
+                  temp_conf_1 <- as.data.frame(do.call(rbind, lapply(strsplit(top_10_comboscore$`IDA_Comboscore_95%_Confidence_Interval`, "_"), as.numeric)))
+                  temp_ylims_1 <- layer_scales(p1)$y$range$range
+                  temp_ylims_1[2] <- temp_ylims_1[2]*1.2
+                  temp_ylims_1[1] <- 0
+                  p1 <- p1 + geom_errorbar(aes(ymin=temp_conf_1$V1, ymax=temp_conf_1$V2), width=.05, position=position_dodge(.9)) + coord_cartesian(ylim = temp_ylims_1)
+    
+                  temp_conf_2 <- as.data.frame(do.call(rbind, lapply(strsplit(top_10_MaxHR$`MaxHR_95%_Confidence_Interval`, "_"), as.numeric)))
+                  temp_ylims_2 <- layer_scales(p2)$y$range$range
+                  temp_ylims_2[2] <- max(temp_ylims_2, 1)
+                  temp_ylims_2[1] <- 0
+                  p2 <- p2 + geom_errorbar(aes(ymin=temp_conf_2$V1, ymax=temp_conf_2$V2), width=.05, position=position_dodge(.9)) + coord_cartesian(ylim = temp_ylims_2)
                 }
-                max_dose_drugs_added[i] <- temp_doses[which.max(clean_temp_doses)]
+      
+                plots <- list(p1, p2)
+              } else {
+                pnull <- ggplot(data.frame()) + geom_point() + xlim(0, 10) + ylim(0, 1) +
+                       annotate(geom="text", x=5, y=0.5, label="IDAComboscores and HRs\nmust be calculated to\nproduce plottable results.", size= 9)
+                plots <- list(pnull)
               }
-              print("C")
-              max_dose_data <- NULL
-              for(i in 1:length(drugs_added)){
-                max_dose_data <- rbind(max_dose_data, collected_result[collected_result$Drug1Dose == max_dose_selected_drug & collected_result$Drug2 == drugs_added[i] & collected_result$Drug2Dose == max_dose_drugs_added[i],])
-              }
-  
-            #Finding top 10 IDAComboscores
-              top_10_comboscore <- max_dose_data[order(max_dose_data$IDA_Comboscore, decreasing = TRUE),][1:min(10,length(drugs_added)),]
-              top_10_comboscore$Drug2 <- factor(top_10_comboscore$Drug2, levels = top_10_comboscore$Drug2)
-            #Finding top 10 MaxHR
-              top_10_MaxHR <- max_dose_data[order(max_dose_data$MaxHR, decreasing = FALSE),][1:min(10,length(drugs_added)),]
-              top_10_MaxHR$Drug2 <- factor(top_10_MaxHR$Drug2, levels = top_10_MaxHR$Drug2)
-  
-            p1 <- ggplot(data = top_10_comboscore, aes(x = Drug2, y = IDA_Comboscore)) +
-                  geom_bar(stat="identity") +
-                  xlab("") +
-                  ylab("IDAComboscore") +
-                  ggtitle("Top 10 IDAComboscores at Max Concentration of Each Selected Compound") +
-                  theme(axis.text.x = element_text(angle = 60, size = 12, hjust = 1))
-
-            p2 <- ggplot(data = top_10_MaxHR, aes(x = Drug2, y = MaxHR)) +
-                  geom_bar(stat = "identity") +
-                  xlab("") +
-                  ylab("Maximum Hazard Ratio") +
-                  ggtitle("LOwest 10 MaxHRs at Max Concentration of Each Selected Compound") +
-                  theme(axis.text.x = element_text(angle = 60, size = 12, hjust = 1))
-
-            if(uncertainty){
-              temp_conf_1 <- as.data.frame(do.call(rbind, lapply(strsplit(top_10_comboscore$`IDA_Comboscore_95%_Confidence_Interval`, "_"), as.numeric)))
-              temp_ylims_1 <- layer_scales(p1)$y$range$range
-              temp_ylims_1[2] <- temp_ylims_1[2]*1.2
-              temp_ylims_1[1] <- 0
-              p1 <- p1 + geom_errorbar(aes(ymin=temp_conf_1$V1, ymax=temp_conf_1$V2), width=.05, position=position_dodge(.9)) + coord_cartesian(ylim = temp_ylims_1)
-
-              temp_conf_2 <- as.data.frame(do.call(rbind, lapply(strsplit(top_10_MaxHR$`MaxHR_95%_Confidence_Interval`, "_"), as.numeric)))
-              temp_ylims_2 <- layer_scales(p2)$y$range$range
-              temp_ylims_2[2] <- max(temp_ylims_2, 1)
-              temp_ylims_2[1] <- 0
-              p2 <- p2 + geom_errorbar(aes(ymin=temp_conf_2$V1, ymax=temp_conf_2$V2), width=.05, position=position_dodge(.9)) + coord_cartesian(ylim = temp_ylims_2)
             }
-  
-            plots <- list(p1, p2)
-          } else {
-            pnull <- ggplot(data.frame()) + geom_point() + xlim(0, 10) + ylim(0, 1) +
-                   annotate(geom="text", x=5, y=0.5, label="IDAComboscores and HRs\nmust be calculated to\nproduce plottable results.", size= 9)
-            plots <- list(pnull)
-          }
+            
+          if(nchar(warning_msg) == 0)
+            warning_msg <- "No warning messages"
           
-        if(nchar(warning_msg) == 0)
-          warning_msg <- "No warning messages"
-        return_value <- list(collected_result, warning_msg, plots)
-        names(return_value) <- c("table","warningMessage", "plots")
-        return_value
-      })
-      promise_race(future_result) %...>% {remove_modal_spinner()}
-      future_result
-    })
-    
-    
-    output$table <- renderDataTable({
-      promise_all(data = computationResult()) %...>% with({
-        data$table[, names(data$table) != "Cell_Lines_Used", with = FALSE]
-      })
-    },
-    options = list(scrollX = TRUE))
-    
-    output$log <- renderText({
-      promise_all(data = computationResult()) %...>% with({
-        data$warningMessage
-      })
-    })
-    
-    output$plot <- renderPlot({
-      promise_all(data = computationResult()) %...>% with({
-        grid.arrange(grobs=data$plots,ncol = 1, nrow = 2)
-      })
-    })
-    
-    output$downloadData <- downloadHandler(
-      filename = function() {
-        paste('data-', Sys.Date(), '.txt', sep='')
-      },
-      content = function(file) {
-        promise_all(data = computationResult()) %...>% with({
-          write_delim(data$table, file, delim = "\t")
+          #Arranging data in list
+            plots <- grid.arrange(grobs=plots,ncol = 1, nrow = 2)
+            return_value <- list(collected_result, warning_msg, plots)
+            names(return_value) <- c("table","warningMessage", "plots")
+            
+          #Cleaning up data
+            rm("monotherapy_data", "progress", "min_RAM_free_ratio_within_future", "isLowerEfficacy",
+               "efficacyMetric", "fixedDrug", "drugsToAdd", "uncertainty", "nSim",
+               "comboscore", "averageDuplicate", "currentFileType", "eff_se_col",
+               "collected_result", "plots", "warning_msg", "pnull")
+            gc()
+            
+          #Returning data
+            return(return_value)
         })
-      }
-    )
-    
-    output$downloadPlot <- downloadHandler(
-      filename = function() {
-        paste("plot(s)-", Sys.Date(), ".pdf", sep = "")
-      },
-      content = function(file) {
-        promise_all(data = computationResult()) %...>% with({
-          ggsave(file,plot = grid.arrange(grobs=data$plots,ncol = 1, nrow = 2), dpi = 600)
-        })
-      }
-    )
-    
-    output$downloadLog <- downloadHandler(
-      filename = function() {
-        paste('log-', Sys.Date(), '.txt', sep='')
-      },
-      content = function(file) {
-        promise_all(data = computationResult()) %...>% with({
-          write(data$warningMessage, file)
-        })
-      }
-    )
 
-  })
-}
+      #Ending calculation and returning results
+        promise_race(future_result) %...>% {
+          progress$close()
+          remove_modal_spinner()
+          }
+        future_result
+    })
+    
+    #Rendering outputs for user
+      observeEvent(computationResult(), {
+        
+        req(computationResult())
+        
+        promise_all(data = computationResult()) %...>% with({
+          isolate({
+            
+            #Interactive Table
+              output$table <- DT::renderDataTable(
+                {
+                  if (!is.null(data$table)) {
+                    return(as.data.frame(data$table)[, ! colnames(data$table) %in% "Cell_Lines_Used"])
+                  } else {
+                    return(data.frame(
+                      Warning = "No results produced; data$table is NULL. Please see error logs or contact app developers for help."
+                    ))
+                  }
+                },
+                options = list(scrollX = TRUE)
+              )
+              
+            #App Plot
+              output$plot <- renderPlot({
+                plot(data$plot)
+              })
+              
+            #App Log
+              output$log <- renderText({
+                data$warningMessage
+              })
+              
+            #Downloadable Table
+              output$downloadData <- downloadHandler(
+                filename = function() {
+                  paste("data-", Sys.Date(), ".txt", sep = "")
+                },
+                content = function(file) {
+                  write.table(as.data.frame(data$table), file, sep = "\t", row.names = FALSE, col.names = TRUE)
+                }
+              )
+              
+            #Downloadable Plot
+              output$downloadPlot <- downloadHandler(
+                filename = function() {
+                  paste("plot(s)-", Sys.Date(), ".tiff", sep = "")
+                },
+                content = function(file) {
+                  ggsave(file, plot = data$plots, width = 8, height = 8, units = "in")
+                }
+              )
+              
+            #Downloadable Log
+              output$downloadLog <- downloadHandler(
+                filename = function() {
+                  paste("log-", Sys.Date(), ".txt", sep = "")
+                },
+                content = function(file) {
+                  write(data$warningMessage, file)
+                }
+              )
+            
+          }) #END: isolate({
+        }) #END: promise_all(data = computationResult()) %...>% with({
+      }) #END: observeEvent(computationResult(), {
+
+  }) #END: moduleServer(id, function(input, output, session) {
+} #END: twoDrugs.batch.server <- function(id, fileInfo) {
 
 
 

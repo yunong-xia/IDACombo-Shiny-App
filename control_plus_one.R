@@ -313,12 +313,14 @@ controlPlusOne.server <- function(id, fileInfo) {
           
           if(nchar(warning_msg) == 0)
             warning_msg <- "No warning messages"
+          
+          plots <- grid.arrange(grobs=plots,ncol = 2, nrow = 2)
           return_value <- list(res, warning_msg, plots)
           names(return_value) <- c("table","warningMessage","plots")
           return_value
       })
       
-      promise_race(future_result) %...>% {remove_modal_spinner()}#remove the spinnder
+      promise_race(future_result) %...>% {remove_modal_spinner()}#remove the spinner
       
       future_result
     })
@@ -339,7 +341,7 @@ controlPlusOne.server <- function(id, fileInfo) {
     
     output$plot <- renderPlot({
       promise_all(data = computationResult()) %...>% with({
-        grid.arrange(grobs=data$plots,ncol = 2, nrow = 2)
+        plot(data$plots)
       })
     })
     
@@ -362,11 +364,11 @@ controlPlusOne.server <- function(id, fileInfo) {
     
     output$downloadPlot <- downloadHandler(
       filename = function() {
-        paste("plot(s)-", Sys.Date(), ".pdf", sep = "")
+        paste("plot(s)-", Sys.Date(), ".tiff", sep = "")
       },
       content = function(file) {
         promise_all(data = computationResult()) %...>% with({
-          ggsave(file,plot = grid.arrange(grobs=data$plots,ncol = 2, nrow = 2))
+          ggsave(file, plot = data$plots, width = 10, height = 8, units = "in")
         })
       }
     )

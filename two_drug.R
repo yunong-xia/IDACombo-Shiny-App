@@ -287,121 +287,129 @@ twoDrugs.server <- function(id, fileInfo) {
     })
     
     
-    plot.object <- reactive({
-      promise_all(data = computationResult())%...>% with({
-        name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
-        plot.data <- data$table[,c("Drug_1", "Drug_2", "Drug1Dose", "Drug2Dose", name_of_combo_efficacy)]
-        if(plot.data$Drug_1[1] == plot.data$Drug_2[1]){
-          plot.data$Drug_2 = paste0(plot.data$Drug_2,"_2")
-        }
-        plot.data$Group <- "Predicted Combination"
-        if(fileType() == "provided"){
-          #remove "(Csustained) " from the dose columns and convert these columns to numeric
-          # in order to label the x and y axis.
-          plot.data$Drug1Dose <- as.numeric(gsub("\\(Csustained\\) ", "", plot.data$Drug1Dose))
-          plot.data$Drug2Dose <- as.numeric(gsub("\\(Csustained\\) ", "", plot.data$Drug2Dose))
-        }
-        plot.data$Group[plot.data$Drug1Dose == 0] <- paste0(plot.data$Drug_2[1], " Monotherapy")
-        plot.data$Group[plot.data$Drug2Dose == 0] <- paste0(plot.data$Drug_1[1], " Monotherapy")
-        to.add <- as.data.frame(matrix(c(rep(0, ncol(plot.data)-1), "Origin"), ncol = ncol(plot.data)))
-        colnames(to.add) <- colnames(plot.data)
-        plot.data <- rbind(plot.data, to.add)
-        plot.data$Group <- factor(plot.data$Group, levels = c(paste0(plot.data$Drug_1[1], " Monotherapy"), paste0(plot.data$Drug_2[1], " Monotherapy"), "Origin", "Predicted Combination"))
-        plot.data$Drug1Dose <- as.numeric(plot.data$Drug1Dose)
-        plot.data$Drug2Dose <- as.numeric(plot.data$Drug2Dose)
-        plot.data[[name_of_combo_efficacy]] <- as.numeric(plot.data[[name_of_combo_efficacy]])
-        plot.data[[name_of_combo_efficacy]] <- plot.data[[name_of_combo_efficacy]] * 100
-        
-        groups <- levels(plot.data$Group)
-        origin <- which(groups == "Origin")
-        groups <- groups[-origin]
-        colors <- c("blue", "green", "white", "magenta")
-        rgl.open(useNULL = rgl.useNULL())
-        name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
-        scatter3d(x = plot.data$Drug2Dose, y = plot.data[[name_of_combo_efficacy]], z = plot.data$Drug1Dose, 
-                  surface = F, grid = F, ellipsoid = F, xlab = "", zlab = "", ylab = "", 
-                  groups = plot.data$Group, axis.ticks = F, axis.scales = T, axis.col = c("darkgreen", "black", "blue"), surface.col = colors)
-        par3d(windowRect = c(-1873, -433, -590, 530))
-        par3d(userMatrix = matrix(c(0.5643716, -0.006304999, -0.82549691, 0, -0.1164742, 0.989359140, -0.08718707, 0, 0.8172630, 0.145355001, 0.55763179, 0, 0, 0, 0, 1), 
-                                  nrow = 4, ncol = 4, byrow = T))
-        par3d(zoom = 1.1)
-        at <- seq(0,1, length.out = 5)
-        at <- at[2:4]
-        z.labels <- formatC(seq(0,max(plot.data$Drug1Dose), length.out = 5), format = "g", digits = 2)[2:4]
-        y.labels <- seq(0,100, length.out = 5)[2:4]
-        x.labels <- formatC(seq(0,max(plot.data$Drug2Dose), length.out = 5), format = "g", digits = 2)[2:4]
-        rgl.texts(x = at, y = -0.05, z = 0, text = x.labels, col = "darkgreen")
-        rgl.texts(0, -0.1, at, z.labels, col = "blue")
-        rgl.texts(-0.05, at, -0.05, y.labels, col = "black")
-        
-        best.monotherapy <- min(plot.data[[name_of_combo_efficacy]][grep("Monotherapy", plot.data$Group)])
-        planes3d(a = 0, b = -1, c = 0, d = best.monotherapy/100, alpha = 0.5, col = "green")
-        max.z <- signif(as.numeric(formatC(seq(0,max(plot.data$Drug1Dose), length.out = 5), format = "g", digits = 2)[5]), 1)
-        max.x <- signif(as.numeric(formatC(seq(0,max(plot.data$Drug2Dose), length.out = 5), format = "g", digits = 2)[5]), 1)
-        max.x.point <- max(plot.data$Drug2Dose)
-        max.z.point <- max(plot.data$Drug1Dose)
-        x.coord <- min(max.x.point/max.x, 1)
-        z.coord <- min(max.z.point/max.z, 1)
-        
-        legend3d("topleft", legend = groups, col = colors[1:(length(groups)+1)][-origin], pch = 16, cex=3, inset=c(0.08, 0.07))
-        
-        rglwidget()
+    #Generating 3-d plot
+      plot.object <- reactive({
+        promise_all(data = computationResult())%...>% with({
+          name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
+          plot.data <- data$table[,c("Drug_1", "Drug_2", "Drug1Dose", "Drug2Dose", name_of_combo_efficacy)]
+          if(plot.data$Drug_1[1] == plot.data$Drug_2[1]){
+            plot.data$Drug_2 = paste0(plot.data$Drug_2,"_2")
+          }
+          plot.data$Group <- "Predicted Combination"
+          if(fileType() == "provided"){
+            #remove "(Csustained) " from the dose columns and convert these columns to numeric
+            # in order to label the x and y axis.
+            plot.data$Drug1Dose <- as.numeric(gsub("\\(Csustained\\) ", "", plot.data$Drug1Dose))
+            plot.data$Drug2Dose <- as.numeric(gsub("\\(Csustained\\) ", "", plot.data$Drug2Dose))
+          }
+          plot.data$Group[plot.data$Drug1Dose == 0] <- paste0(plot.data$Drug_2[1], " Monotherapy")
+          plot.data$Group[plot.data$Drug2Dose == 0] <- paste0(plot.data$Drug_1[1], " Monotherapy")
+          to.add <- as.data.frame(matrix(c(rep(0, ncol(plot.data)-1), "Origin"), ncol = ncol(plot.data)))
+          colnames(to.add) <- colnames(plot.data)
+          plot.data <- rbind(plot.data, to.add)
+          plot.data$Group <- factor(plot.data$Group, levels = c(paste0(plot.data$Drug_1[1], " Monotherapy"), paste0(plot.data$Drug_2[1], " Monotherapy"), "Origin", "Predicted Combination"))
+          plot.data$Drug1Dose <- as.numeric(plot.data$Drug1Dose)
+          plot.data$Drug2Dose <- as.numeric(plot.data$Drug2Dose)
+          plot.data[[name_of_combo_efficacy]] <- as.numeric(plot.data[[name_of_combo_efficacy]])
+          plot.data[[name_of_combo_efficacy]] <- plot.data[[name_of_combo_efficacy]] * 100
+          
+          groups <- levels(plot.data$Group)
+          origin <- which(groups == "Origin")
+          groups <- groups[-origin]
+          colors <- c("blue", "green", "white", "magenta")
+          rgl.open(useNULL = rgl.useNULL())
+          name_of_combo_efficacy <- paste0("Mean_Combo_",efficacyMetric())
+          scatter3d(x = plot.data$Drug2Dose, y = plot.data[[name_of_combo_efficacy]], z = plot.data$Drug1Dose, 
+                    surface = F, grid = F, ellipsoid = F, xlab = "", zlab = "", ylab = "", 
+                    groups = plot.data$Group, axis.ticks = F, axis.scales = T, axis.col = c("darkgreen", "black", "blue"), surface.col = colors)
+          par3d(windowRect = c(-1873, -433, -590, 530))
+          par3d(userMatrix = matrix(c(0.5643716, -0.006304999, -0.82549691, 0, -0.1164742, 0.989359140, -0.08718707, 0, 0.8172630, 0.145355001, 0.55763179, 0, 0, 0, 0, 1), 
+                                    nrow = 4, ncol = 4, byrow = T))
+          par3d(zoom = 1.1)
+          at <- seq(0,1, length.out = 5)
+          at <- at[2:4]
+          z.labels <- formatC(seq(0,max(plot.data$Drug1Dose), length.out = 5), format = "g", digits = 2)[2:4]
+          y.labels <- seq(0,100, length.out = 5)[2:4]
+          x.labels <- formatC(seq(0,max(plot.data$Drug2Dose), length.out = 5), format = "g", digits = 2)[2:4]
+          rgl.texts(x = at, y = -0.05, z = 0, text = x.labels, col = "darkgreen")
+          rgl.texts(0, -0.1, at, z.labels, col = "blue")
+          rgl.texts(-0.05, at, -0.05, y.labels, col = "black")
+          
+          best.monotherapy <- min(plot.data[[name_of_combo_efficacy]][grep("Monotherapy", plot.data$Group)])
+          planes3d(a = 0, b = -1, c = 0, d = best.monotherapy/100, alpha = 0.5, col = "green")
+          max.z <- signif(as.numeric(formatC(seq(0,max(plot.data$Drug1Dose), length.out = 5), format = "g", digits = 2)[5]), 1)
+          max.x <- signif(as.numeric(formatC(seq(0,max(plot.data$Drug2Dose), length.out = 5), format = "g", digits = 2)[5]), 1)
+          max.x.point <- max(plot.data$Drug2Dose)
+          max.z.point <- max(plot.data$Drug1Dose)
+          x.coord <- min(max.x.point/max.x, 1)
+          z.coord <- min(max.z.point/max.z, 1)
+          
+          legend3d("topleft", legend = groups, col = colors[1:(length(groups)+1)][-origin], pch = 16, cex=3, inset=c(0.08, 0.07))
+          
+          rglwidget()
+        })
       })
-    })
     
-    
-    output$table <- renderDataTable({
-        promise_all(data = computationResult()) %...>% with({
-          data$table
+    #Rendering outputs
+      
+      #Interactive table
+        output$table <- renderDataTable({
+            promise_all(data = computationResult()) %...>% with({
+              data$table
+            })
+          },
+          options = list(scrollX = TRUE)
+        )
+      
+      #Log GUI
+        output$log <- renderText({
+          promise_all(data = computationResult()) %...>% with({
+            data$warningMessage
+          })
         })
-      },
-      options = list(scrollX = TRUE)
-    )
-    
-    output$log <- renderText({
-      promise_all(data = computationResult()) %...>% with({
-        data$warningMessage
-      })
-    })
-    
-    output$plot <- renderRglwidget({
-      promise_all(plot = plot.object()) %...>% with({
-        plot
-      })
-    })
-    
-    output$downloadData <- downloadHandler(
-      filename = function() {
-        paste('data-', Sys.Date(), '.txt', sep='')
-      },
-      content = function(con) {
-        promise_all(data = computationResult()) %...>% with({
-          write_delim(data$table, con, delim = "\t")
+      
+      #Interactive plot
+        output$plot <- renderRglwidget({
+          promise_all(plot = plot.object()) %...>% with({
+            plot
+          })
         })
-      }
-    )
-    
-    output$downloadPlot <- downloadHandler(
-      filename = function() {
-        paste('plot-', Sys.Date(), '.html', sep='')
-      },
-      content = function(con) {
-        promise_all(data = computationResult()) %...>% with({
-          htmlwidgets::saveWidget(data$plot3d, con,selfcontained = TRUE)
-        })
-      }
-    )
-    
-    output$downloadLog <- downloadHandler(
-      filename = function() {
-        paste('log-', Sys.Date(), '.txt', sep='')
-      },
-      content = function(file) {
-        promise_all(data = computationResult()) %...>% with({
-          write(data$warningMessage, file)
-        })
-      }
-    )
+      
+      #Download table
+        output$downloadData <- downloadHandler(
+          filename = function() {
+            paste('data-', Sys.Date(), '.txt', sep='')
+          },
+          content = function(con) {
+            promise_all(data = computationResult()) %...>% with({
+              write_delim(data$table, con, delim = "\t")
+            })
+          }
+        )
+      
+      #Download plot
+        output$downloadPlot <- downloadHandler(
+          filename = function() {
+            paste('plot-', Sys.Date(), '.html', sep='')
+          },
+          content = function(file) {
+            promise_all(plot = plot.object()) %...>% with({
+              htmlwidgets::saveWidget(plot, file, selfcontained = TRUE)
+            })
+          }
+        )
+      
+      #Download log
+        output$downloadLog <- downloadHandler(
+          filename = function() {
+            paste('log-', Sys.Date(), '.txt', sep='')
+          },
+          content = function(file) {
+            promise_all(data = computationResult()) %...>% with({
+              write(data$warningMessage, file)
+            })
+          }
+        )
     
   })
 }
