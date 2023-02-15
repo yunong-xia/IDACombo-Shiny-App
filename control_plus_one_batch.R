@@ -11,11 +11,17 @@ controlPlusOne.batch.controlTreatmentInput <- function(id) {
   )
 }
 
-controlPlusOne.batch.controlTreatmentServer <- function(id, dataset) {
+controlPlusOne.batch.useNoCsusDrugsServer <- function(id) {
   moduleServer(id, function(input, output, session) {
-    observeEvent(c(dataset(), input$use_no_Csus_drugs), {
+    reactive(input$use_no_Csus_drugs)
+  })
+}
+
+controlPlusOne.batch.controlTreatmentServer <- function(id, dataset, useNoCsusDrugs) {
+  moduleServer(id, function(input, output, session) {
+    observeEvent(c(dataset(), useNoCsusDrugs()), {
       #If checkbox value is FALSE, then provide drugs that have Csustained monotherapy data
-      if(input$use_no_Csus_drugs == FALSE && "with_Csus_concc" %in% names(dataset())){
+      if(useNoCsusDrugs() == FALSE && "with_Csus_conc" %in% names(dataset())){
         drug_choices <- unique(dataset()$Drug[dataset()$with_Csus_conc])
       }
       #If TRUE, then provide all drugs
@@ -89,10 +95,14 @@ controlPlusOne.batch.drugToAddInput <- function(id) {
 }
 
 
-controlPlusOne.batch.drugToAddServer <- function(id, dataset, selectedControlTreatment) {
+controlPlusOne.batch.drugToAddServer <- function(id, dataset, selectedControlTreatment, useNoCsusDrugs) {
   moduleServer(id, function(input, output, session) {
-    observeEvent(c(dataset(), selectedControlTreatment()), {
+    observeEvent(c(dataset(), selectedControlTreatment(), useNoCsusDrugs()), {
       to_add_choices <- setdiff(unique(dataset()$Drug), selectedControlTreatment())
+      #If checkbox value is FALSE, then provide drugs that have Csustained monotherapy data
+        if(useNoCsusDrugs() == FALSE && "with_Csus_conc" %in% names(dataset())){
+          to_add_choices <- to_add_choices[to_add_choices %in% unique(dataset()$Drug[dataset()$with_Csus_conc])]
+        }
       updatePickerInput(session,
                         inputId = "drugToAdd", label = "Drugs to Add (Multiple Drugs)",
                         choices = to_add_choices
@@ -207,11 +217,13 @@ controlPlusOne.batch.server <- function(id, fileInfo) {
     
     isLowerEfficacy <- fileInfo$isLowerEfficacy
     
-    selectedControlTreatment <- controlPlusOne.batch.controlTreatmentServer("controlTreatmentSelection", dataset)
+    useNoCsusDrugs <- controlPlusOne.batch.useNoCsusDrugsServer("controlTreatmentSelection")
+    
+    selectedControlTreatment <- controlPlusOne.batch.controlTreatmentServer("controlTreatmentSelection", dataset, useNoCsusDrugs)
     
     selectedDose <- controlPlusOne.batch.doseServer("doseSelection", dataset, fileType, selectedControlTreatment)
     
-    selectedDrugToAdd <- controlPlusOne.batch.drugToAddServer("drugToAddSelection", dataset, selectedControlTreatment)
+    selectedDrugToAdd <- controlPlusOne.batch.drugToAddServer("drugToAddSelection", dataset, selectedControlTreatment, useNoCsusDrugs)
     
     selectedCellLinesAndSubgroups <- global.cellLineServer("cellLineSelection", cellLinesAndSubgroups)
     

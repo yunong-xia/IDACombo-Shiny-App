@@ -152,8 +152,8 @@ citationPage <- fluidPage(
 
 appVersion <- fluidPage(
   wellPanel(
-    h4("Current Version: 0.9.0"),
-    h4("Last Updated: 12/8/2021")
+    h4("Current Version: 0.9.9"),
+    h4("Last Updated: 2/14/2023")
   )
 )
 
