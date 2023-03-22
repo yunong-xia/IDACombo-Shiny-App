@@ -130,7 +130,7 @@ testVsControl.parametersInput <- function(id) {
       helper(type = "inline",
              title = "Calculate Uncertainty",
              icon = "question-circle", colour = NULL,
-             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction. For custom datasets, this option only works if an Efficacy_SE column was provided with the file.",
+             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction.",
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
     conditionalPanel(condition = "input.uncertainty", ns = ns,
@@ -254,9 +254,6 @@ testVsControl.server <- function(id, fileInfo) {
       testDrugs <- selectedTestDrugs()
       testDoses <- selectedTestDoses()
       calculateUncertainty <- checkedParameters$uncertainty()
-      if(is.null(eff_se_col)){
-        calculateUncertainty <- FALSE #preventing user from trying to calculate uncertainties without SE col, would like to put warning about this somewhere, but not sure best way to do that.
-      }
       nSimulation <- nSim()
       calculateHazardRatio <- checkedParameters$hazardRatio()
       averageDuplicateRecords <- checkedParameters$averageDuplicate()

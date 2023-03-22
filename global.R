@@ -23,13 +23,13 @@ library(promises)
 library(future)
 library(ipc)
 library(memuse)
-library(doFuture)
 
 options(shiny.maxRequestSize = 500 * 1024^2)
 options(stringsAsFactors = FALSE)
 
 par3d(cex = 1)
-plan(multicore, workers = 7)
+plan(multicore)
+
 
 check_RAM_frequency <- 10 #RAM usage is checked every this many seconds
 min_RAM_free_ratio_to_start_future <- 0.4 #The minimum ratio of free ram / total ram that must be available to start a new future (i.e. RAM and CPU intensive) calculation
