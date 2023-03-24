@@ -29,14 +29,23 @@ introductionPage <- fluidPage(
       wellPanel(
         h3("IDACombo Package"),
         h4("This app provides a graphical user interface for the IDACombo package, which is a drug combination prediction tool implemented in R. The core idea behind the package is that drug combination efficacy can be predicted using monotherapy cell line data and Independent Drug Action."),
-        h3("Source Code"),
+        h3("Video Tutorials"),
         tags$a(
-          href="https://github.com/Alexander-Ling/IDACombo/", 
-          h4("IDACombo R Package")
+          href="https://youtu.be/pnOEgZJmx9k", 
+          h4("How the IDACombo algorithm works")
         ),
         tags$a(
-          href="https://github.com/yunong-xia/IDACombo-Shiny-App", 
-          h4("IDACombo Shiny App")
+          href="https://youtu.be/R4cupNBxz-E", 
+          h4("How to use this app")
+        ),
+        tags$a(
+          href="https://youtu.be/U9JYkD-hK5E", 
+          h4("How to generate custom datasets for this app using the Simplicity app")
+        ),
+        h3("IDACombo Paper"),
+        tags$a(
+          href="https://www.nature.com/articles/s41467-020-19563-6#:~:text=Computationally%20predicting%20clinical%20drug%20combination%20efficacy%20with%20cancer,...%202%20Results%20Design%20principle%20and%20workflow%20", 
+          h4("Ling and Huang, 2020")
         ),
         br(),
         br(),
@@ -45,14 +54,14 @@ introductionPage <- fluidPage(
           tags$img(
             src = "image/huang_lab_icon.png",
             align = "center",
-            width = "100%",
+            width = "70%",
             height = "auto"
           )
         )
       ),
       wellPanel(
         h3("To cite use of this app"),
-        h4(HTML("If you use this resource for your research, please cite us and the researchers who generated the data used by the app! Citation information can be found in the <b>Source Citation</b> sub tab under <b>About This App</b>."))
+        h4(HTML("If you use this resource for your research, please cite us and the researchers who generated the data used by the app! Citation information can be found in the <b>Citing This Resource</b> sub tab under <b>About This App</b>."))
       )
     ),
     
@@ -61,7 +70,7 @@ introductionPage <- fluidPage(
         h2("How to use the app"),
         h4("The first step is to load a monotherapy drug screening dataset to use with IDACombo. You can do this by navigating to the \"Dataset Loader\" tab on the left and selecting one of our pre-provided datasets or by uploading your own data in the specified format."),
         br(),
-        h4("After loading a dataset, you can generate drug combination predictions from it using one of several functions which are described below."),
+        h4("After loading a dataset, you can generate drug combination predictions from it using one of several functions which are described below.")
       ),
       wellPanel(
         h2("Function Descriptions:"),
@@ -152,8 +161,17 @@ citationPage <- fluidPage(
 
 appVersion <- fluidPage(
   wellPanel(
-    h4("Current Version: 0.9.0"),
-    h4("Last Updated: 12/8/2021")
+    h4("Current Version: 0.1.0"),
+    h4("Last Updated: 3/21/2023"),
+    h3("Source Code"),
+    tags$a(
+      href="https://github.com/Alexander-Ling/IDACombo/", 
+      h4("IDACombo R Package")
+    ),
+    tags$a(
+      href="https://github.com/yunong-xia/IDACombo-Shiny-App", 
+      h4("IDACombo Shiny App")
+    )
   )
 )
 
@@ -172,6 +190,10 @@ faq <- fluidPage(
     h4(HTML("Ling, A. & Huang, R. S. Computationally predicting clinical drug combination efficacy with cancer cell line screens and independent drug action. <i>Nat. Commun.</i> <b>11</b>, 1-13 (2020)")),
     h3(HTML("<b>For information on this app:</b>")),
     h4(HTML("Xia, Y., Ling, A., Huang, R.S. An IDACombo based web application for predicting cancer drug combination efficacy. <i>In Preparation.</i> (2021)."))
+  ),
+  wellPanel(
+    h2("How were the pre-provided datasets generated?"),
+    h4(HTML("The viability values for the pre-provided datasets were generated using <a href=\"https://oncotherapyinformatics.org/simplicity/\">the Simplicity web app</a>. Viabilities were estimated for all cell lines and compounds in each dataset from concentrations of 0 up to the most commonly tested maximum concentration for each compound. For compounds which had annotated Csustained values, an additional 11 concentrations from 0 to Csustained were also estimated so long as the Csustained value was not more than 2x the most commonly tested maximum concentration for that compound in that dataset. These datasets were last generated using Simplicity v1.0 on 3/21/2023."))
   ),
   wellPanel(
     h2("How does this app predict drug combination efficacy?"),

@@ -10,7 +10,7 @@ datasetInput <- function(id) {
         "Preprovided Dataset",
         selectInput(
           ns("providedDataSet"), "Choose a preprovided dataset:",
-          c("GDSC1", "GDSC2","CTRPv2","PRISM Repurposing")
+          c("CTRPv2","GDSC1", "GDSC2","PRISM Repurposing")
         ),
         actionButton(ns("button"), "Load"),
         tags$hr(),
@@ -30,13 +30,13 @@ datasetInput <- function(id) {
         ),
         tags$br(),
         h4(HTML("Please also specify the following <u>prior to uploading your file</u>:")),
-        wellPanel(textInput(ns("Master_efficacyMetric"), "Your Efficacy Metric Name (can be empty)", NULL, width = '70%', placeholder = "(i.e. Viability, % Growth, AUC, etc.)"),
-                  checkboxInput(ns("Master_isLowerEfficacy"), "Lower Efficacy Is Better Drug Effect") %>%
+        wellPanel(textInput(ns("Master_efficacyMetric"), "Your Efficacy Metric Name", "Efficacy", width = '70%', placeholder = "(i.e. Viability, % Growth, AUC, etc.)"),
+                  checkboxInput(ns("Master_isLowerEfficacy"), "Lower Efficacy Is Better Drug Effect", value = TRUE) %>%
                     helper(type = "inline",
                            title = "Lower Efficacy Is Better Drug Effect",
                            icon = "question-circle", colour = NULL,
                            content = c(
-                             "Check this box if a lower efficacy value indicates a better cell line response to the drug treatment. Leave this unchecked if a higher efficacy value indicates a better cell line response to the drug treatment."
+                             "Check this box if a lower efficacy value indicates a better cell line response to the drug treatment (i.e. viability, AUC, etc.). Leave this unchecked if a higher efficacy value indicates a better cell line response to the drug treatment (i.e. % cell death, AAC, etc.)."
                            ),
                            size = "m",
                            buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
@@ -61,7 +61,7 @@ datasetInput <- function(id) {
 # Module Server function
 datasetServer <- function(id) {
   moduleServer(id, function(input, output, session) {
-    fileInfo <- reactiveValues(dataset = preprovided_dataset[["GDSC1"]], extraCol = c("seCol", "subCol"), type = "provided", efficacyMetric = "Viability", isLowerEfficacy = T, cellLinesAndSubgroups = distinct(preprovided_dataset[["GDSC1"]][, c("Cell_Line","Cell_Line_Subgroup")]), name = "GDSC1", doseUnit = "microMolar")
+    fileInfo <- reactiveValues(dataset = preprovided_dataset[["CTRPv2"]], extraCol = c("seCol", "subCol"), type = "provided", efficacyMetric = "Viability", isLowerEfficacy = T, cellLinesAndSubgroups = distinct(preprovided_dataset[["CTRPv2"]][, c("Cell_Line","Cell_Line_Subgroup")]), name = "CTRPv2", doseUnit = "microMolar")
     
     #loading preprovided dataset
     observeEvent(input$button, {
@@ -103,14 +103,20 @@ datasetServer <- function(id) {
       if ("Efficacy_SE" %in% headers) {
         extraCol <- c(extraCol, "seCol")
       }
+      if(! "Cell_Line_Subgroup" %in% headers) {
+        content$Cell_Line_Subgroup <- "All_Cell_Lines"
+        headers <- names(content)
+      }
       if ("Cell_Line_Subgroup" %in% headers) {
         extraCol <- c(extraCol, "subCol")
       }
       missedCol <- setdiff(fixedHeaderNames, headers)
       #send warning message
       if(length(missedCol) != 0){
-        custom_dataset_warning_msg(paste0("Warning: Missing required column(s) : ", paste(missedCol, collapse = " ")))
+        custom_dataset_warning_msg(paste0("Warning: Missing required column(s) : ", paste(missedCol, collapse = ", ")))
         return(NULL)
+      } else {
+        custom_dataset_warning_msg(NULL) #Resetting warning message if a new, correct upload has been achieved.
       }
       # add two columns of information about Csustained concentration
       content$with_Csus_conc <- grepl("(Csustained)", content$Drug_Dose)
@@ -137,11 +143,8 @@ datasetServer <- function(id) {
       fileInfo$type <- "custom"
       fileInfo$efficacyMetric <- input$Master_efficacyMetric
       fileInfo$isLowerEfficacy <- input$Master_isLowerEfficacy
-      if ("Cell_Line_Subgroup" %in% headers) {
-        fileInfo$cellLinesAndSubgroups <- distinct(preprovided_dataset[[input$providedDataSet]][, c("Cell_Line","Cell_Line_Subgroup")])
-      }
-      else{
-        fileInfo$cellLinesAndSubgroups <- NULL
+      if("Cell_Line_Subgroup" %in% headers) {
+        fileInfo$cellLinesAndSubgroups <- distinct(content[, c("Cell_Line","Cell_Line_Subgroup")])
       }
       fileInfo$name <- "custom"
       fileInfo$doseUnit <- "custom"

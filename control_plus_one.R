@@ -87,6 +87,52 @@ controlPlusOne.drugToAddServer <- function(id, dataset, selectedControlTreatment
   })
 }
 
+#select dosages
+controlPlusOne.doseAddInput <- function(id) {
+  ns <- NS(id)
+  tagList(
+    pickerInput(ns("drugToAddDose"),"Drug dose available for drug to add (Multiple)", 
+                choices = NULL, 
+                options = list(`actions-box` = TRUE,`selected-text-format` = "count > 2",
+                               `count-selected-text` = "{0}/{1} Concentrations",
+                               `live-search-style` = "startsWith" , `live-search` = TRUE),
+                multiple = T)
+  )
+}
+
+controlPlusOne.doseAddServer <- function(id, dataset, fileType, selectedDrugToAdd, selectedSharedCellLines) {
+  moduleServer(id, function(input,output,session) {
+    
+    observeEvent(c(dataset(), fileType(), selectedDrugToAdd(), selectedSharedCellLines()),{
+      data <- dataset()
+      drug_to_add <- selectedDrugToAdd()
+      shared_cls <- selectedSharedCellLines()
+      
+      drug_to_add_choices <- sort(unique(data$Drug_Dose[data$Drug == drug_to_add & data$Cell_Line %in% shared_cls]))
+
+      #make sure fileType() is not null. Since at the beginning, nothing is selected.
+      if(length(fileType()) != 0 && fileType() == "provided"){
+        Csustained_conc1 <- as.numeric(gsub("\\(Csustained\\) ","",drug_to_add_choices[grep("\\(Csustained\\) ", drug_to_add_choices)]))
+        clean_conc1 <- sort(as.numeric(gsub("\\(Csustained\\) ", "", drug_to_add_choices)))
+        if(length(Csustained_conc1) != 0){
+          clean_conc1[match(Csustained_conc1,clean_conc1)] <- paste0("(Csustained) ", Csustained_conc1)
+        }
+        else{
+          clean_conc1 <- as.character(clean_conc1)
+        }
+        drug_to_add_choices <- clean_conc1
+      }
+      
+      updatePickerInput(session, inputId = "drugToAddDose", label = "Drug dose available for drug to add (Multiple)",
+                        choices = drug_to_add_choices, selected = drug_to_add_choices)
+    })
+    
+    
+    reactive(input$drugToAddDose)
+    
+  })
+}
+
 
 # 2Drug parameters and there helpers
 controlPlusOne.parametersInput <- function(id) {
@@ -96,7 +142,7 @@ controlPlusOne.parametersInput <- function(id) {
       helper(type = "inline",
              title = "Calculate Uncertainty",
              icon = "question-circle", colour = NULL,
-             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction.",
+             content = "Should a Monte Carlo simulation be performed to estimate uncertainties in the efficacy predictions based on uncertainties in the monotherapy efficacy measurements? Note that selecting this option will significantly extend the time it takes to complete the prediction. For custom datasets, this option only works if an Efficacy_SE column was provided with the file.",
              buttonLabel = "Okay", easyClose = TRUE, fade = FALSE
       ),
     conditionalPanel(condition = "input.uncertainty", ns = ns,
@@ -144,6 +190,7 @@ controlPlusOne.ui <- function(id) {
       controlPlusOne.doseInput(ns("doseSelection")),
       controlPlusOne.drugToAddInput(ns("drugToAddSelection")),
       global.cellLineInput(ns("cellLineSelection")),
+      controlPlusOne.doseAddInput(ns("drugToAddDoseSelection")),
       tags$hr(),
       controlPlusOne.parametersInput(ns("parametersCheck")),
       tags$hr(),
@@ -189,6 +236,8 @@ controlPlusOne.server <- function(id, fileInfo) {
     selectedCellLines <- selectedCellLinesAndSubgroups$cellLines
 
     selectedSubgroups <- selectedCellLinesAndSubgroups$subgroups
+    
+    selectedDrugToAddDoses <- controlPlusOne.doseAddServer("drugToAddDoseSelection", dataset, fileType, selectedDrugToAdd, selectedCellLines)
 
     checkedParameters <- controlPlusOne.parametersServer("parametersCheck", fileType, isLowerEfficacy)
 
@@ -200,7 +249,8 @@ controlPlusOne.server <- function(id, fileInfo) {
         need(!is.null(selectedControlTreatment()), "Please select control treatment"),
         need(!is.null(selectedDrugToAdd()), "Please select plusOne drug"),
         need(!is.null(selectedCellLines()), "Please select Cell lines"),
-        need(length(selectedDose()) == length(selectedControlTreatment()), "Please select doses")
+        need(!is.null(selectedDrugToAddDoses()), "Please select drug to add doses"),
+        need(length(selectedDose()) == length(selectedControlTreatment()), "Please select control treatment doses")
       )
 
       if ("seCol" %in% extraCol()) {
@@ -222,11 +272,14 @@ controlPlusOne.server <- function(id, fileInfo) {
       dose <- selectedDose()
       drugToAdd <- selectedDrugToAdd()
       calculateUncertainty <- checkedParameters$uncertainty()
+      if(is.null(eff_se_col)){
+        calculateUncertainty <- FALSE #preventing user from trying to calculate uncertainties without SE col, would like to put warning about this somewhere, but not sure best way to do that.
+      }
       nSimulation <- nSim()
       calculateComboscoreAndHazardRatio <- checkedParameters$comboscore()
       averageDuplicateRecords <- checkedParameters$averageDuplicate()
       data <- dataset() %>%
-        filter(Cell_Line %in% selectedCellLines())
+        filter(Cell_Line %in% selectedCellLines() & ! (Drug %in% drugToAdd & ! Drug_Dose %in% selectedDrugToAddDoses()))
       file_type <- fileType()
       
       future_result <- future({
@@ -310,12 +363,14 @@ controlPlusOne.server <- function(id, fileInfo) {
           
           if(nchar(warning_msg) == 0)
             warning_msg <- "No warning messages"
+          
+          plots <- grid.arrange(grobs=plots,ncol = 2, nrow = 2)
           return_value <- list(res, warning_msg, plots)
           names(return_value) <- c("table","warningMessage","plots")
           return_value
       })
       
-      promise_race(future_result) %...>% {remove_modal_spinner()}#remove the spinnder
+      promise_race(future_result) %...>% {remove_modal_spinner()}#remove the spinner
       
       future_result
     })
@@ -336,7 +391,7 @@ controlPlusOne.server <- function(id, fileInfo) {
     
     output$plot <- renderPlot({
       promise_all(data = computationResult()) %...>% with({
-        grid.arrange(grobs=data$plots,ncol = 2, nrow = 2)
+        plot(data$plots)
       })
     })
     
@@ -359,11 +414,11 @@ controlPlusOne.server <- function(id, fileInfo) {
     
     output$downloadPlot <- downloadHandler(
       filename = function() {
-        paste("plot(s)-", Sys.Date(), ".pdf", sep = "")
+        paste("plot(s)-", Sys.Date(), ".tiff", sep = "")
       },
       content = function(file) {
         promise_all(data = computationResult()) %...>% with({
-          ggsave(file,plot = grid.arrange(grobs=data$plots,ncol = 2, nrow = 2))
+          ggsave(file, plot = data$plots, width = 10, height = 8, units = "in")
         })
       }
     )
